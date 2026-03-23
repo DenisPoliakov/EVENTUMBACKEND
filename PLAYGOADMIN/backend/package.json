@@ -1,0 +1,29 @@
+{
+  "name": "playgoadmin-api",
+  "version": "0.1.0",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "prisma:migrate": "prisma migrate dev --name init",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "REST API for amateur football admin panel",
+  "dependencies": {
+    "@prisma/client": "^5.19.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11",
+    "prisma": "^5.19.0"
+  }
+}

@@ -1,0 +1,225 @@
+// Prisma schema for PlayGo Admin API
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum MatchStatus {
+  DRAFT
+  OPEN
+  FULL
+  FINISHED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MatchFormat {
+  FIVE_X_FIVE
+  SEVEN_X_SEVEN
+  ELEVEN_X_ELEVEN
+}
+
+enum MatchApprovalMode {
+  MANUAL
+  AUTO_FIRST_COME
+}
+
+enum TeamMemberRole {
+  CAPTAIN
+  MEMBER
+  SUBSTITUTE
+}
+
+enum TeamInvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum TeamFieldPosition {
+  GK
+  DF
+  MF
+  FW
+}
+
+model City {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  stadiums  Stadium[]
+  teams     Team[]
+  users     User[]
+  playerCards PlayerCard[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Stadium {
+  id          String   @id @default(uuid())
+  name        String
+  address     String
+  description String?
+  latitude    Decimal  @db.Decimal(9, 6)
+  longitude   Decimal  @db.Decimal(9, 6)
+  imageUrl    String?
+  cityId      String
+  city        City     @relation(fields: [cityId], references: [id])
+  matches     Match[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([cityId, name])
+}
+
+model Match {
+  id          String             @id @default(uuid())
+  stadiumId   String
+  stadium     Stadium            @relation(fields: [stadiumId], references: [id])
+  startTime   DateTime
+  endTime     DateTime
+  format      MatchFormat
+  maxTeams    Int
+  priceCents  Int?
+  currency    String? @default("USD")
+  status      MatchStatus
+  approvalMode MatchApprovalMode @default(MANUAL)
+  description String?
+  registrations MatchRegistration[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([startTime])
+  @@index([status])
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  username     String?       @unique
+  name         String
+  firstName    String?
+  lastName     String?
+  passwordHash String
+  role         Role          @default(USER)
+  cityId       String?
+  city         City?         @relation(fields: [cityId], references: [id])
+  isBlocked    Boolean       @default(false)
+  blockReason  String?
+  blockedUntil DateTime?
+  matchBanUntil DateTime?
+  playerCard   PlayerCard?
+  memberships  TeamMember[]
+  captainedTeams Team[]      @relation("UserCaptain")
+  receivedTeamInvitations TeamInvitation[] @relation("TeamInvitationInvitee")
+  sentTeamInvitations TeamInvitation[] @relation("TeamInvitationInviter")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model PlayerCard {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+  cityId         String?
+  city           City?    @relation(fields: [cityId], references: [id])
+  position       String
+  preferredFoot  String
+  heightCm       Int?
+  weightKg       Int?
+  age            Int?
+  favoriteFormat String
+  bio            String?
+  avatarUrl      String?
+  skillTags      String[]
+  statuses       String[]
+  rating         Int      @default(70)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([position])
+  @@index([rating])
+}
+
+model Team {
+  id            String        @id @default(uuid())
+  name          String
+  cityId        String
+  city          City          @relation(fields: [cityId], references: [id])
+  captainUserId String
+  captain       User          @relation("UserCaptain", fields: [captainUserId], references: [id])
+  members       TeamMember[]
+  invitations   TeamInvitation[]
+  registrations MatchRegistration[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([cityId, name])
+}
+
+model TeamMember {
+  id        String          @id @default(uuid())
+  teamId    String
+  userId    String
+  role      TeamMemberRole  @default(MEMBER)
+  fieldPosition TeamFieldPosition?
+  team      Team            @relation(fields: [teamId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+  createdAt DateTime        @default(now())
+
+  @@unique([teamId, userId])
+}
+
+model TeamInvitation {
+  id               String               @id @default(uuid())
+  teamId           String
+  team             Team                 @relation(fields: [teamId], references: [id])
+  inviterUserId    String
+  inviter          User                 @relation("TeamInvitationInviter", fields: [inviterUserId], references: [id])
+  inviteeUserId    String
+  invitee          User                 @relation("TeamInvitationInvitee", fields: [inviteeUserId], references: [id])
+  inviteeIdentifier String
+  status           TeamInvitationStatus @default(PENDING)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  respondedAt      DateTime?
+
+  @@index([inviteeUserId, status])
+  @@index([teamId, status])
+}
+
+model MatchRegistration {
+  id        String              @id @default(uuid())
+  matchId   String
+  teamId    String?
+  teamName  String
+  captainName  String
+  captainLogin String
+  cityId    String
+  stadiumId String
+  playersCount Int?
+  status    RegistrationStatus  @default(PENDING)
+  note      String?
+  match     Match               @relation(fields: [matchId], references: [id])
+  team      Team?               @relation(fields: [teamId], references: [id])
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@unique([matchId, teamName])
+}
