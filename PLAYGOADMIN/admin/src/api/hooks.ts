@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import type { City, Stadium, Match, Team, MatchRegistration } from '../types'
+import type { City, Stadium, Match, Team, MatchRegistration, NewsItem } from '../types'
 import type { User } from '../types'
 
 export const useCities = () =>
@@ -34,6 +34,12 @@ export const useUsers = (filters: { cityId?: string; role?: string; q?: string; 
   useQuery<User[]>({
     queryKey: ['users', filters],
     queryFn: async () => (await api.get('/users', { params: filters })).data,
+  })
+
+export const useNews = () =>
+  useQuery<NewsItem[]>({
+    queryKey: ['news'],
+    queryFn: async () => (await api.get('/news')).data,
   })
 
 // Generic mutation helper to invalidate keys

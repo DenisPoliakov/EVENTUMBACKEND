@@ -60,6 +60,12 @@ enum TeamFieldPosition {
   FW
 }
 
+enum NewsType {
+  MANUAL
+  STADIUM_CREATED
+  MATCH_CREATED
+}
+
 model City {
   id        String    @id @default(uuid())
   name      String    @unique
@@ -82,6 +88,7 @@ model Stadium {
   cityId      String
   city        City     @relation(fields: [cityId], references: [id])
   matches     Match[]
+  news        News[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -102,6 +109,7 @@ model Match {
   approvalMode MatchApprovalMode @default(MANUAL)
   description String?
   registrations MatchRegistration[]
+  news        News[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -222,4 +230,22 @@ model MatchRegistration {
   updatedAt DateTime            @updatedAt
 
   @@unique([matchId, teamName])
+}
+
+model News {
+  id          String   @id @default(uuid())
+  title       String
+  body        String
+  imageUrl    String?
+  type        NewsType @default(MANUAL)
+  stadiumId   String?
+  stadium     Stadium? @relation(fields: [stadiumId], references: [id])
+  matchId     String?
+  match       Match?   @relation(fields: [matchId], references: [id])
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([publishedAt])
+  @@index([type])
 }

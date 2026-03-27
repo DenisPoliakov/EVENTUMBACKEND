@@ -8,6 +8,7 @@ const navItems = [
   { to: '/users', label: 'Пользователи' },
   { to: '/teams', label: 'Команды' },
   { to: '/registrations', label: 'Заявки' },
+  { to: '/news', label: 'Новости' },
 ]
 
 function Layout({ children }: { children: ReactNode }) {
@@ -18,7 +19,7 @@ function Layout({ children }: { children: ReactNode }) {
           <span style={{ fontSize: 22 }}>⚽</span>
           <div>
             <div>PlayGo Admin</div>
-            <div style={{ color: '#8da2b5', fontSize: 12 }}>управление матчами</div>
+            <div style={{ color: '#8da2b5', fontSize: 12 }}>управление eventum</div>
           </div>
         </div>
         <ul className="nav-list">

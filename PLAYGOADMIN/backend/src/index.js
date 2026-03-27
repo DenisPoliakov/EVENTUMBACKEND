@@ -11,6 +11,7 @@ import matchRouter from './routes/matches.js'
 import teamRouter from './routes/teams.js'
 import userRouter from './routes/users.js'
 import registrationRouter from './routes/registrations.js'
+import newsRouter from './routes/news.js'
 import uploadRouter from './routes/uploads.js'
 import publicRouter from './routes/public.js'
 import teamHubRouter from './routes/teamHub.js'
@@ -50,6 +51,7 @@ app.use('/api/admin/matches', matchRouter)
 app.use('/api/admin/teams', teamRouter)
 app.use('/api/admin/users', userRouter)
 app.use('/api/admin/registrations', registrationRouter)
+app.use('/api/admin/news', newsRouter)
 app.use('/api/admin/uploads', uploadRouter)
 
 // Fallback 404

@@ -85,3 +85,32 @@ export type MatchRegistration = {
   match?: Match
   createdAt: string
 }
+
+export type NewsItem = {
+  id: string
+  title: string
+  body: string
+  imageUrl?: string | null
+  type: 'MANUAL' | 'STADIUM_CREATED' | 'MATCH_CREATED'
+  stadiumId?: string
+  matchId?: string
+  publishedAt: string
+  createdAt?: string
+  updatedAt?: string
+  stadium?: {
+    id: string
+    name: string
+    city?: string
+  } | null
+  match?: {
+    id: string
+    startTime: string
+    status: string
+    format: string
+    stadium?: {
+      id: string
+      name: string
+      city?: string
+    } | null
+  } | null
+}

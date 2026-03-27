@@ -8,7 +8,7 @@ import {
   hasActiveRegistrationForTeam,
   syncMatchStatusByCapacity,
 } from '../lib/registrations.js'
-
+import { serializeNews } from '../lib/news.js'
 const router = express.Router()
 
 const hasActiveMatchBan = (user) =>
@@ -22,6 +22,21 @@ const hasActiveBlock = (user) => {
 
 router.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+router.get('/news', async (_req, res, next) => {
+  try {
+    const news = await prisma.news.findMany({
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        stadium: { include: { city: true } },
+        match: { include: { stadium: { include: { city: true } } } },
+      },
+    })
+    res.json(news.map(serializeNews))
+  } catch (err) {
+    next(err)
+  }
 })
 
 router.get('/stadiums', async (req, res, next) => {
