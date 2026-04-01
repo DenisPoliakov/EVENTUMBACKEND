@@ -52,7 +52,7 @@ createdb -O playgoadmin playgoadmin
 ### Backend
 
 ```bash
-cd /Users/deniska/Desktop/EVENTUM/PLAYGOADMIN/backend
+cd PLAYGOADMIN/backend
 npm install
 cp .env.example .env
 ```
@@ -71,7 +71,7 @@ WEBHOOK_URL=
 Запуск backend:
 
 ```bash
-cd /Users/deniska/Desktop/EVENTUM/PLAYGOADMIN/backend
+cd PLAYGOADMIN/backend
 npx prisma generate
 npx prisma db push
 npm run dev
@@ -82,7 +82,7 @@ Backend поднимается на `http://localhost:4000`.
 ### Админка
 
 ```bash
-cd /Users/deniska/Desktop/EVENTUM/PLAYGOADMIN/admin
+cd PLAYGOADMIN/admin
 npm install
 npm run dev
 ```

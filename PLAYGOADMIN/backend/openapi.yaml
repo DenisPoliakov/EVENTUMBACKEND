@@ -1,0 +1,1614 @@
+  openapi: 3.0.3
+  info:
+    title: EVENTUM Admin API
+    description: |
+      REST API для мобильного приложения и админ-панели.
+      - Публичные и пользовательские эндпоинты под `/api` (JWT `Bearer` там, где указано).
+      - Админка: `/api/admin/*` с HTTP Basic Auth (`ADMIN_USER` / `ADMIN_PASSWORD`).
+    version: 0.1.0
+
+  servers:
+    - url: http://localhost:4000
+      description: Локальный сервер
+
+  tags:
+    - name: Public
+      description: Без авторизации (часть — публичный каталог)
+    - name: Auth
+      description: Регистрация, вход, профиль (JWT)
+    - name: Player cards
+      description: Карточки футболистов
+    - name: Teams
+      description: Команды пользователя (JWT)
+    - name: Admin
+      description: CRUD для админки (Basic Auth)
+
+  security:
+    []
+
+  components:
+    parameters:
+      IdPath:
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    securitySchemes:
+      bearerAuth:
+        type: http
+        scheme: bearer
+        bearerFormat: JWT
+        description: Токен из `POST /api/auth/login` или `register` (поле `accessToken`)
+      basicAuth:
+        type: http
+        scheme: basic
+        description: Логин и пароль из `ADMIN_USER` и `ADMIN_PASSWORD`
+
+    schemas:
+      Error:
+        type: object
+        properties:
+          error:
+            type: string
+          message:
+            type: string
+            description: Подробности (на русском при блокировках и бизнес-ошибках)
+
+      HealthResponse:
+        type: object
+        properties:
+          status:
+            type: string
+            example: ok
+          timestamp:
+            type: string
+            format: date-time
+
+      UserPublic:
+        type: object
+        properties:
+          id: { type: string, format: uuid }
+          email: { type: string, format: email }
+          username: { type: string }
+          firstName: { type: string }
+          lastName: { type: string }
+          city: { type: string }
+          isBlocked: { type: boolean }
+          blockReason: { type: string }
+          blockedUntil: { type: string, format: date-time, nullable: true }
+          matchBanUntil: { type: string, format: date-time, nullable: true }
+          hasPlayerCard: { type: boolean }
+
+      AuthResponse:
+        type: object
+        properties:
+          accessToken:
+            type: string
+            description: JWT
+          user:
+            $ref: '#/components/schemas/UserPublic'
+
+      RegisterRequest:
+        type: object
+        required: [email, username, password, city]
+        properties:
+          email:
+            type: string
+            format: email
+          username:
+            type: string
+          password:
+            type: string
+            minLength: 6
+          firstName: { type: string }
+          lastName: { type: string }
+          city:
+            type: string
+            description: Название города; при отсутствии в БД будет создан
+
+      LoginRequest:
+        type: object
+        required: [identifier, password]
+        properties:
+          identifier:
+            type: string
+            description: Email или username
+          password: { type: string }
+
+      PatchMeRequest:
+        type: object
+        required: [email, city]
+        properties:
+          email: { type: string, format: email }
+          firstName: { type: string }
+          lastName: { type: string }
+          city: { type: string }
+
+      PasswordCheckRequest:
+        type: object
+        required: [password]
+        properties:
+          password: { type: string }
+
+      PasswordChangeRequest:
+        type: object
+        required: [oldPassword, newPassword]
+        properties:
+          oldPassword: { type: string }
+          newPassword: { type: string, minLength: 6 }
+
+      PlayerCardUser:
+        type: object
+        properties:
+          id: { type: string }
+          email: { type: string }
+          username: { type: string }
+          firstName: { type: string }
+          lastName: { type: string }
+
+      TeamSummaryLite:
+        type: object
+        nullable: true
+        properties:
+          id: { type: string }
+          name: { type: string }
+          city: { type: string }
+          captain:
+            type: object
+            properties:
+              id: { type: string }
+              username: { type: string }
+              firstName: { type: string }
+              lastName: { type: string }
+          memberCount: { type: integer }
+
+      PlayerCard:
+        type: object
+        properties:
+          id: { type: string, format: uuid }
+          userId: { type: string, format: uuid }
+          position:
+            type: string
+            enum: [GK, DF, MF, FW]
+          preferredFoot:
+            type: string
+            enum: [LEFT, RIGHT, BOTH]
+          heightCm: { type: integer, nullable: true }
+          weightKg: { type: integer, nullable: true }
+          age: { type: integer, nullable: true }
+          favoriteFormat:
+            type: string
+            enum: [FIVE_X_FIVE, SEVEN_X_SEVEN, ELEVEN_X_ELEVEN]
+          bio: { type: string }
+          avatarUrl:
+            type: string
+            description: Относительный путь к файлу; к URL добавьте базовый адрес API.
+          skillTags:
+            type: array
+            items:
+              type: string
+              enum: [PACE, SHOOTING, PASSING, DRIBBLING, STAMINA, DEFENDING]
+          statuses:
+            type: array
+            items:
+              type: string
+              enum:
+                - LOOKING_FOR_TEAM
+                - READY_TO_PLAY
+                - CAPTAIN
+                - WITHOUT_TEAM
+          rating: { type: integer, minimum: 40, maximum: 99 }
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+          city: { type: string }
+          user:
+            $ref: '#/components/schemas/PlayerCardUser'
+          currentTeam:
+            $ref: '#/components/schemas/TeamSummaryLite'
+
+      PlayerCardOptions:
+        type: object
+        properties:
+          positions:
+            type: array
+            items: { type: string }
+          preferredFeet:
+            type: array
+            items: { type: string }
+          formats:
+            type: array
+            items: { type: string }
+          skillTags:
+            type: array
+            items: { type: string }
+          statuses:
+            type: array
+            items: { type: string }
+
+      PlayerCardUpsertRequest:
+        type: object
+        required: [position, preferredFoot, favoriteFormat, skillTags, statuses]
+        properties:
+          position: { type: string, enum: [GK, DF, MF, FW] }
+          preferredFoot: { type: string, enum: [LEFT, RIGHT, BOTH] }
+          favoriteFormat:
+            type: string
+            enum: [FIVE_X_FIVE, SEVEN_X_SEVEN, ELEVEN_X_ELEVEN]
+          skillTags:
+            type: array
+            minItems: 1
+            maxItems: 3
+            items: { type: string }
+          statuses:
+            type: array
+            minItems: 1
+            maxItems: 3
+            items: { type: string }
+          heightCm: { type: integer }
+          weightKg: { type: integer }
+          age: { type: integer }
+          bio: { type: string }
+          avatarUrl: { type: string }
+          rating: { type: integer, description: 40–99, по умолчанию 70 }
+          city: { type: string, description: Опционально — привязка карточки к городу }
+
+      MePlayerCardResponse:
+        type: object
+        properties:
+          playerCard:
+            $ref: '#/components/schemas/PlayerCard'
+            nullable: true
+
+      AvatarUploadResponse:
+        type: object
+        properties:
+          url: { type: string, example: /uploads/players/1234567890-abc.jpg }
+
+      TeamUser:
+        type: object
+        properties:
+          id: { type: string }
+          username: { type: string }
+          firstName: { type: string }
+          lastName: { type: string }
+          email: { type: string }
+
+      TeamMemberSerialized:
+        type: object
+        properties:
+          id: { type: string }
+          userId: { type: string }
+          role:
+            type: string
+            enum: [CAPTAIN, MEMBER, SUBSTITUTE]
+          fieldPosition:
+            type: string
+            enum: ['', GK, DF, MF, FW]
+          user:
+            $ref: '#/components/schemas/TeamUser'
+
+      TeamInvitationSerialized:
+        type: object
+        properties:
+          id: { type: string }
+          status: { type: string }
+          inviteeIdentifier: { type: string }
+          createdAt: { type: string, format: date-time }
+          invitee:
+            $ref: '#/components/schemas/TeamUser'
+
+      TeamSerialized:
+        type: object
+        properties:
+          id: { type: string }
+          name: { type: string }
+          cityId: { type: string }
+          city: { type: string }
+          captainUserId: { type: string }
+          captain:
+            $ref: '#/components/schemas/TeamUser'
+          members:
+            type: array
+            items:
+              $ref: '#/components/schemas/TeamMemberSerialized'
+          invitations:
+            type: array
+            items:
+              $ref: '#/components/schemas/TeamInvitationSerialized'
+
+      CreateTeamRequest:
+        type: object
+        required: [name]
+        properties:
+          name: { type: string }
+
+      InviteToTeamRequest:
+        type: object
+        required: [teamId, identifier]
+        properties:
+          teamId: { type: string, format: uuid }
+          identifier:
+            type: string
+            description: email или username в нижнем регистре
+
+      TeamMemberPatchRequest:
+        type: object
+        required: [role]
+        properties:
+          role:
+            type: string
+            enum: [MEMBER, SUBSTITUTE]
+          fieldPosition:
+            type: string
+            enum: [GK, DF, MF, FW]
+            description: Пустая строка сбрасывает позицию
+
+      City:
+        type: object
+        properties:
+          id: { type: string, format: uuid }
+          name: { type: string }
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+
+      Stadium:
+        type: object
+        properties:
+          id: { type: string, format: uuid }
+          name: { type: string }
+          address: { type: string }
+          description: { type: string, nullable: true }
+          latitude: { type: string, description: Decimal как string в JSON }
+          longitude: { type: string }
+          imageUrl: { type: string, nullable: true }
+          cityId: { type: string }
+          city:
+            $ref: '#/components/schemas/City'
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+
+      Match:
+        type: object
+        properties:
+          id: { type: string, format: uuid }
+          stadiumId: { type: string }
+          startTime: { type: string, format: date-time }
+          endTime: { type: string, format: date-time }
+          format:
+            type: string
+            enum: [FIVE_X_FIVE, SEVEN_X_SEVEN, ELEVEN_X_ELEVEN]
+          maxTeams: { type: integer }
+          priceCents: { type: integer, nullable: true }
+          currency: { type: string, nullable: true }
+          status:
+            type: string
+            enum: [DRAFT, OPEN, FULL, FINISHED, CANCELLED]
+          approvalMode:
+            type: string
+            enum: [MANUAL, AUTO_FIRST_COME]
+          description: { type: string, nullable: true }
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+          stadium:
+            allOf:
+              - $ref: '#/components/schemas/Stadium'
+            description: При include из Prisma
+
+      MatchRegistration:
+        type: object
+        properties:
+          id: { type: string, format: uuid }
+          matchId: { type: string }
+          teamId: { type: string, nullable: true }
+          teamName: { type: string }
+          captainName: { type: string }
+          captainLogin: { type: string }
+          cityId: { type: string }
+          stadiumId: { type: string }
+          playersCount: { type: integer, nullable: true }
+          status:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED]
+          note: { type: string, nullable: true }
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+
+      PublicRegistrationRequest:
+        type: object
+        required: [matchId, teamName, captainName, captainLogin]
+        properties:
+          matchId: { type: string, format: uuid }
+          teamName: { type: string, description: Для логики приложения подставляется команда пользователя }
+          captainName: { type: string }
+          captainLogin: { type: string, description: Email или username капитана }
+          note: { type: string }
+          playersCount: { type: integer }
+
+      PublicRegistrationResponse:
+        allOf:
+          - $ref: '#/components/schemas/MatchRegistration'
+        properties:
+          autoApproved: { type: boolean }
+          teamId: { type: string }
+
+      OkTrue:
+        type: object
+        properties:
+          ok: { type: boolean, example: true }
+
+  paths:
+    /api/health:
+      get:
+        tags: [Public]
+        summary: Проверка доступности API
+        responses:
+          '200':
+            description: OK
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/HealthResponse'
+
+    /api/stadiums:
+      get:
+        tags: [Public]
+        summary: Список стадионов (публичный)
+        parameters:
+          - name: cityId
+            in: query
+            schema: { type: string, format: uuid }
+          - name: city
+            in: query
+            schema: { type: string }
+            description: Название города без учёта регистра
+        responses:
+          '200':
+            description: Массив стадионов с вложенным `city`
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Stadium'
+
+    /api/matches:
+      get:
+        tags: [Public]
+        summary: Список матчей
+        parameters:
+          - name: cityId
+            in: query
+            schema: { type: string }
+          - name: stadiumId
+            in: query
+            schema: { type: string }
+          - name: status
+            in: query
+            schema:
+              type: string
+              enum: [DRAFT, OPEN, FULL, FINISHED, CANCELLED]
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Match'
+
+    /api/matches/{id}:
+      get:
+        tags: [Public]
+        summary: Матч по id
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Match'
+          '404':
+            description: Match not found
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/registrations:
+      get:
+        tags: [Public]
+        summary: Список заявок (публичный фильтр)
+        parameters:
+          - name: matchId
+            in: query
+            schema: { type: string }
+          - name: status
+            in: query
+            schema: { type: string }
+          - name: captainLogin
+            in: query
+            schema: { type: string }
+          - name: teamId
+            in: query
+            schema: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    allOf:
+                      - $ref: '#/components/schemas/MatchRegistration'
+      post:
+        tags: [Public]
+        summary: Подача заявки из приложения
+        description: |
+          Требует у капитана: карточку футболиста, команду, отсутствие блокировок.
+          Поля команды подставляются с сервера из текущей команды пользователя.
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicRegistrationRequest'
+        responses:
+          '201':
+            description: Создана заявка
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/PublicRegistrationResponse'
+          '400':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '403':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '404':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '409':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/player-card-options:
+      get:
+        tags: [Player cards]
+        summary: Справочники для карточки
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/PlayerCardOptions'
+
+    /api/players:
+      get:
+        tags: [Player cards]
+        summary: Поиск карточек игроков
+        parameters:
+          - name: cityId
+            in: query
+            schema: { type: string }
+          - name: city
+            in: query
+            schema: { type: string }
+          - name: position
+            in: query
+            schema: { type: string, enum: [GK, DF, MF, FW] }
+          - name: skill
+            in: query
+            schema: { type: string }
+          - name: minRating
+            in: query
+            schema: { type: integer }
+          - name: maxRating
+            in: query
+            schema: { type: integer }
+          - name: lookingForTeam
+            in: query
+            schema: { type: boolean }
+          - name: q
+            in: query
+            schema: { type: string }
+            description: Поиск по username, имени, фамилии, bio
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PlayerCard'
+
+    /api/players/{userId}:
+      get:
+        tags: [Player cards]
+        summary: Карточка по user id
+        parameters:
+          - name: userId
+            in: path
+            required: true
+            schema: { type: string, format: uuid }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/PlayerCard'
+          '404':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/me/player-card:
+      get:
+        tags: [Player cards]
+        security: [{ bearerAuth: [] }]
+        summary: Моя карточка (или null)
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/MePlayerCardResponse'
+          '401':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+      put:
+        tags: [Player cards]
+        security: [{ bearerAuth: [] }]
+        summary: Создать / обновить карточку
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerCardUpsertRequest'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/MePlayerCardResponse'
+          '400':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/me/player-card/avatar:
+      post:
+        tags: [Player cards]
+        security: [{ bearerAuth: [] }]
+        summary: Загрузка аватара (multipart)
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file]
+                properties:
+                  file:
+                    type: string
+                    format: binary
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AvatarUploadResponse'
+
+    /api/auth/register:
+      post:
+        tags: [Auth]
+        summary: Регистрация
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterRequest'
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AuthResponse'
+          '400':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/auth/login:
+      post:
+        tags: [Auth]
+        summary: Вход
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginRequest'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AuthResponse'
+          '401':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '403':
+            description: Аккаунт заблокирован
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/me:
+      get:
+        tags: [Auth]
+        security: [{ bearerAuth: [] }]
+        summary: Текущий пользователь
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    user:
+                      $ref: '#/components/schemas/UserPublic'
+          '401':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '403':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+      patch:
+        tags: [Auth]
+        security: [{ bearerAuth: [] }]
+        summary: Обновить профиль
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatchMeRequest'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    user:
+                      $ref: '#/components/schemas/UserPublic'
+
+    /api/me/password/check:
+      post:
+        tags: [Auth]
+        security: [{ bearerAuth: [] }]
+        summary: Проверка текущего пароля
+        requestBody:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordCheckRequest'
+        responses:
+          '204':
+            description: Пароль верный
+          '401':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/me/password:
+      post:
+        tags: [Auth]
+        security: [{ bearerAuth: [] }]
+        summary: Смена пароля
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordChangeRequest'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/OkTrue'
+          '400':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '401':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/me/team:
+      get:
+        tags: [Teams]
+        security: [{ bearerAuth: [] }]
+        summary: Моя текущая команда
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    team:
+                      allOf:
+                        - $ref: '#/components/schemas/TeamSerialized'
+                      nullable: true
+      post:
+        tags: [Teams]
+        security: [{ bearerAuth: [] }]
+        summary: Создать команду
+        requestBody:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTeamRequest'
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    team:
+                      $ref: '#/components/schemas/TeamSerialized'
+          '400':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '409':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/me/team/invitations:
+      post:
+        tags: [Teams]
+        security: [{ bearerAuth: [] }]
+        summary: Пригласить в команду (только капитан)
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteToTeamRequest'
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    invitation:
+                      type: object
+          '400':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '403':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '404':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '409':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/me/team-invitations:
+      get:
+        tags: [Teams]
+        security: [{ bearerAuth: [] }]
+        summary: Входящие приглашения
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    invitations:
+                      type: array
+                      items:
+                        type: object
+
+    /api/me/team-invitations/{id}/accept:
+      post:
+        tags: [Teams]
+        security: [{ bearerAuth: [] }]
+        summary: Принять приглашение
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    team:
+                      $ref: '#/components/schemas/TeamSerialized'
+          '404':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '409':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /api/me/team-invitations/{id}/reject:
+      post:
+        tags: [Teams]
+        security: [{ bearerAuth: [] }]
+        summary: Отклонить приглашение
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/OkTrue'
+
+    /api/me/team/members/{memberId}:
+      patch:
+        tags: [Teams]
+        security: [{ bearerAuth: [] }]
+        summary: Роль и позиция участника (капитан)
+        parameters:
+          - name: memberId
+            in: path
+            required: true
+            schema: { type: string }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberPatchRequest'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    member:
+                      $ref: '#/components/schemas/TeamMemberSerialized'
+
+    /api/teams/{id}/public:
+      get:
+        tags: [Public]
+        summary: Публичная карточка команды
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    team:
+                      $ref: '#/components/schemas/TeamSerialized'
+          '404':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    # -------- Admin (Basic Auth) --------
+
+    /api/admin/cities:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        summary: Список городов
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/City'
+      post:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        summary: Создать город
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [name]
+                properties:
+                  name: { type: string }
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/City'
+
+    /api/admin/cities/{id}:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/City'
+      put:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/City'
+      delete:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204':
+            description: Удалено
+
+    /api/admin/stadiums:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: cityId
+            in: query
+            schema: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Stadium'
+      post:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [name, address, cityId, latitude, longitude]
+                properties:
+                  name: { type: string }
+                  address: { type: string }
+                  description: { type: string }
+                  cityId: { type: string }
+                  latitude: { type: number }
+                  longitude: { type: number }
+                  imageUrl: { type: string }
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Stadium'
+
+    /api/admin/stadiums/{id}:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Stadium'
+      put:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  address: { type: string }
+                  description: { type: string }
+                  cityId: { type: string }
+                  latitude: { type: number }
+                  longitude: { type: number }
+                  imageUrl: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Stadium'
+      delete:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204':
+            description: Удалено
+
+    /api/admin/matches:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: cityId
+            in: query
+            schema: { type: string }
+          - name: stadiumId
+            in: query
+            schema: { type: string }
+          - name: status
+            in: query
+            schema: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Match'
+      post:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stadiumId, startTime, endTime, format, maxTeams, status]
+                properties:
+                  stadiumId: { type: string }
+                  startTime: { type: string, format: date-time }
+                  endTime: { type: string, format: date-time }
+                  format:
+                    type: string
+                    enum: [FIVE_X_FIVE, SEVEN_X_SEVEN, ELEVEN_X_ELEVEN]
+                  maxTeams: { type: integer }
+                  priceCents: { type: integer }
+                  currency: { type: string }
+                  status:
+                    type: string
+                    enum: [DRAFT, OPEN, FULL, FINISHED, CANCELLED]
+                  approvalMode:
+                    type: string
+                    enum: [MANUAL, AUTO_FIRST_COME]
+                  description: { type: string }
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Match'
+
+    /api/admin/matches/{id}:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Match'
+      put:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stadiumId: { type: string }
+                  startTime: { type: string, format: date-time }
+                  endTime: { type: string, format: date-time }
+                  format: { type: string }
+                  maxTeams: { type: integer }
+                  priceCents: { type: integer }
+                  currency: { type: string }
+                  status: { type: string }
+                  approvalMode: { type: string }
+                  description: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Match'
+      delete:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204':
+            description: Удалено
+
+    /api/admin/teams:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: cityId
+            in: query
+            schema: { type: string }
+        responses:
+          '200':
+            description: Команды с city, captain, members
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    type: object
+      post:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [name, cityId, captainUserId]
+                properties:
+                  name: { type: string }
+                  cityId: { type: string }
+                  captainUserId: { type: string }
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  type: object
+
+    /api/admin/teams/{id}:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+      put:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  cityId: { type: string }
+                  captainUserId: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+      delete:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204':
+            description: Удалено
+
+    /api/admin/users:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: role
+            in: query
+            schema: { type: string, enum: [ADMIN, USER] }
+          - name: cityId
+            in: query
+            schema: { type: string }
+          - name: q
+            in: query
+            schema: { type: string }
+          - name: blocked
+            in: query
+            schema:
+              type: string
+              enum: [active, registration_ban, inactive]
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    type: object
+      post:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email, name, passwordHash]
+                properties:
+                  email: { type: string }
+                  name: { type: string }
+                  username: { type: string }
+                  firstName: { type: string }
+                  lastName: { type: string }
+                  passwordHash:
+                    type: string
+                    description: Уже захешированная строка (как в БД), не plain password
+                  role: { type: string, enum: [ADMIN, USER] }
+                  cityId: { type: string }
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  type: object
+
+    /api/admin/users/{id}:
+      put:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string }
+                  name: { type: string }
+                  username: { type: string }
+                  firstName: { type: string }
+                  lastName: { type: string }
+                  passwordHash: { type: string }
+                  role: { type: string }
+                  cityId: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+      delete:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204':
+            description: Удалено
+
+    /api/admin/users/{id}/moderation:
+      patch:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        summary: Модерация пользователя
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username: { type: string, nullable: true }
+                  role: { type: string, enum: [ADMIN, USER] }
+                  isBlocked: { type: boolean }
+                  blockReason: { type: string }
+                  blockedUntil: { type: string, format: date-time, nullable: true }
+                  matchBanUntil: { type: string, format: date-time, nullable: true }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: object
+
+    /api/admin/registrations:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: matchId
+            in: query
+            schema: { type: string }
+          - name: status
+            in: query
+            schema: { type: string }
+          - name: captainLogin
+            in: query
+            schema: { type: string }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MatchRegistration'
+      post:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        summary: Создать заявку вручную (без команды в приложении)
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matchId, teamName, captainName, captainLogin]
+                properties:
+                  matchId: { type: string }
+                  teamName: { type: string }
+                  captainName: { type: string }
+                  captainLogin: { type: string }
+                  note: { type: string }
+                  playersCount: { type: integer }
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/MatchRegistration'
+
+    /api/admin/registrations/{id}/status:
+      patch:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [PENDING, APPROVED, REJECTED]
+        responses:
+          '200':
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/MatchRegistration'
+
+    /api/admin/registrations/{id}:
+      delete:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204':
+            description: Удалено
+
+    /api/admin/uploads:
+      post:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        summary: Загрузка файла (изображение стадиона и т.п.)
+        requestBody:
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file]
+                properties:
+                  file:
+                    type: string
+                    format: binary
+        responses:
+          '201':
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    url: { type: string, example: /uploads/123.jpg }

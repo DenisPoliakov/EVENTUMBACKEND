@@ -63,6 +63,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-app.listen(PORT, () => {
+// Prevent silent crashes
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', err)
+  process.exit(1)
+})
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('unhandledRejection at', promise, 'reason:', reason)
+  process.exit(1)
+})
+
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`PlayGo Admin API listening on port ${PORT}`)
+})
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Stop the other process or use a different PORT.`)
+  } else {
+    console.error('Server error:', err)
+  }
+  process.exit(1)
 })
