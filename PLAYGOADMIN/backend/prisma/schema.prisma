@@ -66,10 +66,17 @@ enum NewsType {
   MATCH_CREATED
 }
 
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
 model City {
   id        String    @id @default(uuid())
   name      String    @unique
   stadiums  Stadium[]
+  sportClubs SportClub[]
   teams     Team[]
   users     User[]
   playerCards PlayerCard[]
@@ -137,6 +144,7 @@ model User {
   captainedTeams Team[]      @relation("UserCaptain")
   receivedTeamInvitations TeamInvitation[] @relation("TeamInvitationInvitee")
   sentTeamInvitations TeamInvitation[] @relation("TeamInvitationInviter")
+  subscriptions UserSubscription[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -248,4 +256,106 @@ model News {
 
   @@index([publishedAt])
   @@index([type])
+}
+
+model Sport {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  clubs       SportClub[]
+  plans       MembershipPlan[]
+  subscriptions UserSubscription[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SportClub {
+  id            String   @id @default(uuid())
+  sportId       String
+  sport         Sport    @relation(fields: [sportId], references: [id])
+  cityId        String?
+  city          City?    @relation(fields: [cityId], references: [id])
+  name          String
+  kind          String?
+  address       String
+  description   String?
+  latitude      Decimal? @db.Decimal(9, 6)
+  longitude     Decimal? @db.Decimal(9, 6)
+  imageUrl      String?
+  yandexMapsUrl String?
+  minAge        Int?
+  maxAge        Int?
+  coaches       String[]
+  schedules     ClubSchedule[]
+  plans         MembershipPlan[]
+  subscriptions UserSubscription[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sportId])
+  @@index([cityId])
+  @@unique([sportId, cityId, name])
+}
+
+model ClubSchedule {
+  id        String    @id @default(uuid())
+  clubId    String
+  club      SportClub @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  title     String?
+  dayOfWeek Int?
+  startTime String
+  endTime   String
+  ageGroup  String?
+  coachName String?
+  note      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([clubId])
+}
+
+model MembershipPlan {
+  id           String   @id @default(uuid())
+  sportId      String
+  sport        Sport    @relation(fields: [sportId], references: [id])
+  clubId       String?
+  club         SportClub? @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  priceCents   Int
+  currency     String   @default("RUB")
+  durationDays Int
+  isActive     Boolean  @default(true)
+  subscriptions UserSubscription[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([sportId])
+  @@index([clubId])
+}
+
+model UserSubscription {
+  id          String             @id @default(uuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id])
+  sportId     String
+  sport       Sport              @relation(fields: [sportId], references: [id])
+  clubId      String?
+  club        SportClub?         @relation(fields: [clubId], references: [id])
+  planId      String
+  plan        MembershipPlan     @relation(fields: [planId], references: [id])
+  status      SubscriptionStatus @default(ACTIVE)
+  startsAt    DateTime           @default(now())
+  expiresAt   DateTime
+  paidAt      DateTime?
+  amountCents Int
+  currency    String             @default("RUB")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([sportId])
+  @@index([clubId])
+  @@index([expiresAt])
 }

@@ -19,6 +19,9 @@ http://localhost:4000
 - все admin-эндпоинты начинаются с `/api/admin/...`
 - для профиля, команды и карточки игрока используется логика `my resource`
 - если ручка требует токен, без `Bearer` вернется `401`
+- аккаунт пользователя общий для всей экосистемы
+- спортивные сущности разделяются по `sportId` / `sportCode`
+- футбол, бокс и будущие виды спорта живут в общей PostgreSQL-базе, но логически изолированы видом спорта
 
 ## Public And App API
 
@@ -84,6 +87,51 @@ http://localhost:4000
 - `GET /api/stadiums` используется приложением для карты и списка стадионов
 - `GET /api/matches` отдает матчи по стадиону/городу/статусу
 - `GET /api/matches/:id` отдает детали одного матча и его регистрации
+
+### Ecosystem Sports And Clubs
+
+- `GET /api/sports`
+  - список видов спорта
+- `GET /api/clubs`
+  - query:
+    - `sportId`
+    - `sportCode`
+    - `cityId`
+    - `city`
+    - `age`
+  - используется для главного экрана будущих приложений
+  - фильтрует клубы/залы по городу, виду спорта и возрасту
+- `GET /api/clubs/:id`
+  - подробная информация по клубу/залу
+  - возвращает адрес, тренеров, расписание, ссылку на Яндекс.Карты
+- `GET /api/subscription-plans`
+  - query:
+    - `sportId`
+    - `clubId`
+    - `active`
+  - список доступных абонементов
+- `POST /api/subscriptions`
+  - Bearer required
+  - body:
+    - `planId`
+    - optional:
+      - `startsAt`
+  - создает оплаченный абонемент пользователя
+- `GET /api/me/subscriptions`
+  - Bearer required
+  - query:
+    - `status`
+  - список абонементов текущего пользователя
+- `GET /api/me/subscriptions/notifications`
+  - Bearer required
+  - возвращает уведомления по абонементам, которые скоро сгорят
+
+Логика:
+- пользовательский аккаунт один для всех видов спорта
+- клубы и залы разделяются по виду спорта
+- абонемент относится к виду спорта, опционально к конкретному клубу/залу
+- `POST /api/subscriptions` сейчас фиксирует успешную оплату на стороне backend и возвращает уведомление `PAYMENT_SUCCESS`
+- уведомление о сгорающем абонементе возвращается, если до конца осталось 7 дней или меньше
 
 ### Match Registrations
 
@@ -223,6 +271,19 @@ http://localhost:4000
 - `DF`
 - `MF`
 - `FW`
+
+### App Ecosystem Flow
+
+Для будущих приложений под бокс и другие виды спорта базовый сценарий такой:
+
+1. `POST /api/auth/register` или `POST /api/auth/login`
+2. `GET /api/sports`
+3. `GET /api/clubs?sportCode=BOXING&city=Москва&age=18`
+4. `GET /api/clubs/:id`
+5. `GET /api/subscription-plans?clubId=...`
+6. `POST /api/subscriptions`
+7. `GET /api/me/subscriptions`
+8. `GET /api/me/subscriptions/notifications`
 
 ## Admin API
 
@@ -388,6 +449,132 @@ http://localhost:4000
 - ручные новости создаются через `/api/admin/news`
 - автоновости создаются backend автоматически при создании новых стадионов и матчей
 - в приложении весь feed читается через `GET /api/news`
+
+### Ecosystem Sports
+
+- `GET /api/admin/sports`
+- `POST /api/admin/sports`
+  - body:
+    - `code`
+    - `name`
+    - optional:
+      - `description`
+- `GET /api/admin/sports/:id`
+- `PUT /api/admin/sports/:id`
+  - body:
+    - optional:
+      - `code`
+      - `name`
+      - `description`
+- `DELETE /api/admin/sports/:id`
+
+Логика:
+- `code` хранится в верхнем регистре
+- базовые виды спорта `FOOTBALL` и `BOXING` создаются автоматически при старте backend
+
+### Ecosystem Clubs
+
+- `GET /api/admin/clubs`
+  - query:
+    - `sportId`
+    - `sportCode`
+    - `cityId`
+    - `city`
+    - `age`
+- `POST /api/admin/clubs`
+  - body:
+    - `sportId`
+    - `name`
+    - `address`
+    - optional:
+      - `cityId`
+      - `kind`
+      - `description`
+      - `latitude`
+      - `longitude`
+      - `imageUrl`
+      - `yandexMapsUrl`
+      - `minAge`
+      - `maxAge`
+      - `coaches`
+      - `schedules`
+- `GET /api/admin/clubs/:id`
+- `PUT /api/admin/clubs/:id`
+  - body:
+    - все поля клуба/зала
+- `DELETE /api/admin/clubs/:id`
+
+Пример `schedules`:
+
+```json
+[
+  {
+    "title": "Вечерняя группа",
+    "dayOfWeek": 1,
+    "startTime": "18:00",
+    "endTime": "19:30",
+    "ageGroup": "16+",
+    "coachName": "Иван Петров",
+    "note": "Базовая техника"
+  }
+]
+```
+
+Логика:
+- клуб/зал всегда относится к конкретному виду спорта
+- тренерский состав хранится массивом строк `coaches`
+- расписание хранится отдельными строками `schedules`
+- фильтр `age` проверяет `minAge` и `maxAge`
+
+### Ecosystem Subscription Plans
+
+- `GET /api/admin/subscription-plans`
+  - query:
+    - `sportId`
+    - `clubId`
+    - `active`
+- `POST /api/admin/subscription-plans`
+  - body:
+    - `sportId`
+    - `title`
+    - `priceCents`
+    - `durationDays`
+    - optional:
+      - `clubId`
+      - `description`
+      - `currency`
+      - `isActive`
+- `GET /api/admin/subscription-plans/:id`
+- `PUT /api/admin/subscription-plans/:id`
+  - body:
+    - все поля абонемента
+- `DELETE /api/admin/subscription-plans/:id`
+
+Логика:
+- абонемент может быть общим для вида спорта или привязанным к конкретному клубу/залу
+- цена хранится в копейках через `priceCents`
+- срок действия хранится в днях через `durationDays`
+
+### Ecosystem User Subscriptions
+
+- `GET /api/admin/subscriptions`
+  - query:
+    - `sportId`
+    - `clubId`
+    - `userId`
+    - `status`
+- `PATCH /api/admin/subscriptions/:id/status`
+  - body:
+    - `status`
+
+Статусы:
+- `ACTIVE`
+- `EXPIRED`
+- `CANCELLED`
+
+Логика:
+- здесь админ видит оплаченные абонементы пользователей
+- статус можно вручную поменять, например отменить абонемент
 
 ### Uploads
 

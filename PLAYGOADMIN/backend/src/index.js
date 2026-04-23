@@ -15,6 +15,12 @@ import newsRouter from './routes/news.js'
 import uploadRouter from './routes/uploads.js'
 import publicRouter from './routes/public.js'
 import teamHubRouter from './routes/teamHub.js'
+import ecosystemRouter from './routes/ecosystem.js'
+import sportRouter from './routes/sports.js'
+import clubRouter from './routes/clubs.js'
+import subscriptionPlanRouter from './routes/subscriptionPlans.js'
+import subscriptionRouter from './routes/subscriptions.js'
+import { ensureDefaultSports } from './lib/defaultSports.js'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -30,6 +36,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')
 app.use('/api', publicRouter)
 app.use('/api', authRouter)
 app.use('/api', teamHubRouter)
+app.use('/api', ecosystemRouter)
 
 // Простейшая базовая авторизация для админки
 app.use('/api/admin', (req, res, next) => {
@@ -52,6 +59,10 @@ app.use('/api/admin/teams', teamRouter)
 app.use('/api/admin/users', userRouter)
 app.use('/api/admin/registrations', registrationRouter)
 app.use('/api/admin/news', newsRouter)
+app.use('/api/admin/sports', sportRouter)
+app.use('/api/admin/clubs', clubRouter)
+app.use('/api/admin/subscription-plans', subscriptionPlanRouter)
+app.use('/api/admin/subscriptions', subscriptionRouter)
 app.use('/api/admin/uploads', uploadRouter)
 
 // Fallback 404
@@ -67,4 +78,7 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`PlayGo Admin API listening on port ${PORT}`)
+  ensureDefaultSports().catch((err) => {
+    console.error('Default sports seed failed', err)
+  })
 })
