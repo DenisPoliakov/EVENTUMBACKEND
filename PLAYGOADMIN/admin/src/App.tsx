@@ -7,6 +7,11 @@ import MatchesPage from './pages/MatchesPage'
 import TeamsPage from './pages/TeamsPage'
 import RegistrationsPage from './pages/RegistrationsPage'
 import UsersPage from './pages/UsersPage'
+import NewsPage from './pages/NewsPage'
+import SportsPage from './pages/SportsPage'
+import ClubsPage from './pages/ClubsPage'
+import SubscriptionPlansPage from './pages/SubscriptionPlansPage'
+import SubscriptionsPage from './pages/SubscriptionsPage'
 import LoginPage from './pages/LoginPage'
 import { api, setAuthCredentials } from './api/client'
 import './App.css'
@@ -51,6 +56,11 @@ function App() {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/registrations" element={<RegistrationsPage />} />
+        <Route path="/news" element={<NewsPage />} />
+        <Route path="/sports" element={<SportsPage />} />
+        <Route path="/clubs" element={<ClubsPage />} />
+        <Route path="/subscription-plans" element={<SubscriptionPlansPage />} />
+        <Route path="/subscriptions" element={<SubscriptionsPage />} />
         <Route path="/" element={<Navigate to="/cities" replace />} />
       </Routes>
     </Layout>

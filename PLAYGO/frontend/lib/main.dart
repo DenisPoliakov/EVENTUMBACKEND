@@ -12,11 +12,13 @@ import 'screens/map_screen.dart';
 import 'screens/leaderboard_screen.dart';
 import 'screens/player_card_editor_screen.dart';
 import 'screens/players_screen.dart';
+import 'screens/news_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/team_screen.dart';
 import 'services/api_client.dart';
+import 'services/admin_api.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -214,6 +216,7 @@ class _PlayGoAppState extends State<PlayGoApp> with WidgetsBindingObserver {
                 children: [
                   HomeScreen(user: _user!),
                   MapScreen(user: _user!),
+                  NewsScreen(api: AdminApi()),
                   PlayersScreen(userCity: _user!.city),
                   const LeaderboardScreen(),
                   ProfileScreen(
@@ -283,6 +286,11 @@ class _PlayGoAppState extends State<PlayGoApp> with WidgetsBindingObserver {
                     icon: Icon(Icons.map_outlined),
                     activeIcon: Icon(Icons.map_rounded),
                     label: 'Карта',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.newspaper_outlined),
+                    activeIcon: Icon(Icons.newspaper),
+                    label: 'Новости',
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.groups_2_outlined),

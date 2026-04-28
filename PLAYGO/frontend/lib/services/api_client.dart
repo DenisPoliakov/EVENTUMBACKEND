@@ -220,6 +220,30 @@ class ApiClient {
     return TeamMemberItem.fromJson(body['member'] as Map<String, dynamic>);
   }
 
+  Future<TeamSummary> transferCaptain({
+    required String token,
+    required String memberId,
+  }) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/me/team/members/$memberId/transfer-captain'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final body = _decode(res);
+    return TeamSummary.fromJson(body['team'] as Map<String, dynamic>);
+  }
+
+  Future<TeamSummary> removeTeamMember({
+    required String token,
+    required String memberId,
+  }) async {
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/api/me/team/members/$memberId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final body = _decode(res);
+    return TeamSummary.fromJson(body['team'] as Map<String, dynamic>);
+  }
+
   Future<TeamSummary> fetchPublicTeam(String teamId) async {
     final res =
         await _client.get(Uri.parse('$baseUrl/api/teams/$teamId/public'));

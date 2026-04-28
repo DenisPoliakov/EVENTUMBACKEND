@@ -1,6 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import type { City, Stadium, Match, Team, MatchRegistration } from '../types'
+import type {
+  City,
+  Stadium,
+  Match,
+  Team,
+  MatchRegistration,
+  NewsItem,
+  Sport,
+  SportClub,
+  MembershipPlan,
+  UserSubscription,
+} from '../types'
 import type { User } from '../types'
 
 export const useCities = () =>
@@ -34,6 +45,36 @@ export const useUsers = (filters: { cityId?: string; role?: string; q?: string; 
   useQuery<User[]>({
     queryKey: ['users', filters],
     queryFn: async () => (await api.get('/users', { params: filters })).data,
+  })
+
+export const useNews = () =>
+  useQuery<NewsItem[]>({
+    queryKey: ['news'],
+    queryFn: async () => (await api.get('/news')).data,
+  })
+
+export const useSports = () =>
+  useQuery<Sport[]>({
+    queryKey: ['sports'],
+    queryFn: async () => (await api.get('/sports')).data,
+  })
+
+export const useClubs = (filters: { sportId?: string; cityId?: string; age?: string }) =>
+  useQuery<SportClub[]>({
+    queryKey: ['clubs', filters],
+    queryFn: async () => (await api.get('/clubs', { params: filters })).data,
+  })
+
+export const useSubscriptionPlans = (filters: { sportId?: string; clubId?: string; active?: string }) =>
+  useQuery<MembershipPlan[]>({
+    queryKey: ['subscription-plans', filters],
+    queryFn: async () => (await api.get('/subscription-plans', { params: filters })).data,
+  })
+
+export const useSubscriptions = (filters: { sportId?: string; clubId?: string; userId?: string; status?: string }) =>
+  useQuery<UserSubscription[]>({
+    queryKey: ['subscriptions', filters],
+    queryFn: async () => (await api.get('/subscriptions', { params: filters })).data,
   })
 
 // Generic mutation helper to invalidate keys

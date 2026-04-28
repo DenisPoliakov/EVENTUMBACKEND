@@ -149,6 +149,20 @@ router.get('/me/team', requireAuth, async (req, res, next) => {
   }
 })
 
+const serializeMember = (member) => ({
+  id: member.id,
+  userId: member.userId,
+  role: member.role,
+  fieldPosition: member.fieldPosition || '',
+  user: {
+    id: member.user?.id || '',
+    username: member.user?.username || '',
+    firstName: member.user?.firstName || '',
+    lastName: member.user?.lastName || '',
+    email: member.user?.email || '',
+  },
+})
+
 router.post('/me/team', requireAuth, async (req, res, next) => {
   try {
     const name = String(req.body.name || '').trim()
@@ -391,21 +405,89 @@ router.patch('/me/team/members/:memberId', requireAuth, async (req, res, next) =
       },
     })
 
-    res.json({
-      member: {
-        id: updated.id,
-        userId: updated.userId,
-        role: updated.role,
-        fieldPosition: updated.fieldPosition || '',
-        user: {
-          id: updated.user?.id || '',
-          username: updated.user?.username || '',
-          firstName: updated.user?.firstName || '',
-          lastName: updated.user?.lastName || '',
-          email: updated.user?.email || '',
+    res.json({ member: serializeMember(updated) })
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message })
+    }
+    next(err)
+  }
+})
+
+router.post('/me/team/members/:memberId/transfer-captain', requireAuth, async (req, res, next) => {
+  try {
+    const member = await prisma.teamMember.findUnique({
+      where: { id: req.params.memberId },
+      include: {
+        team: {
+          include: includeTeamShape,
         },
+        user: true,
       },
     })
+    if (!member) return res.status(404).json({ error: 'Team member not found' })
+
+    const team = await ensureCaptainOwnsTeam(member.teamId, req.auth.sub)
+    if (member.userId === req.auth.sub) {
+      return res.status(400).json({ error: 'Captain is already assigned to this user' })
+    }
+    if (!team.members.some((item) => item.id === member.id)) {
+      return res.status(404).json({ error: 'Team member not found' })
+    }
+
+    await prisma.$transaction([
+      prisma.team.update({
+        where: { id: team.id },
+        data: { captainUserId: member.userId },
+      }),
+      prisma.teamMember.updateMany({
+        where: { teamId: team.id, role: 'CAPTAIN' },
+        data: { role: 'MEMBER' },
+      }),
+      prisma.teamMember.update({
+        where: { id: member.id },
+        data: { role: 'CAPTAIN' },
+      }),
+    ])
+
+    const updatedTeam = await prisma.team.findUnique({
+      where: { id: team.id },
+      include: includeTeamShape,
+    })
+
+    res.json({ team: updatedTeam ? serializeTeam(updatedTeam) : null })
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message })
+    }
+    next(err)
+  }
+})
+
+router.delete('/me/team/members/:memberId', requireAuth, async (req, res, next) => {
+  try {
+    const member = await prisma.teamMember.findUnique({
+      where: { id: req.params.memberId },
+      include: { team: true },
+    })
+    if (!member) return res.status(404).json({ error: 'Team member not found' })
+
+    await ensureCaptainOwnsTeam(member.teamId, req.auth.sub)
+
+    if (member.role === 'CAPTAIN' || member.userId === req.auth.sub) {
+      return res.status(400).json({ error: 'Captain cannot be removed from the team' })
+    }
+
+    await prisma.teamMember.delete({
+      where: { id: member.id },
+    })
+
+    const updatedTeam = await prisma.team.findUnique({
+      where: { id: member.teamId },
+      include: includeTeamShape,
+    })
+
+    res.json({ team: updatedTeam ? serializeTeam(updatedTeam) : null })
   } catch (err) {
     if (err.statusCode) {
       return res.status(err.statusCode).json({ error: err.message })

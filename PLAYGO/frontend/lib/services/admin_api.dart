@@ -251,6 +251,18 @@ class AdminApi {
     return [];
   }
 
+  Future<List<NewsItem>> fetchNews() async {
+    final uri = Uri.parse('$baseUrl/api/news');
+    final res = await _client.get(uri, headers: _headers()).timeout(_timeout);
+    final data = _decode(res);
+    if (data is List) {
+      return data
+          .map((e) => NewsItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+
   Future<MatchItem?> fetchMatchById(String id) async {
     final uri = Uri.parse('$baseUrl/api/matches/$id');
     final res = await _client.get(uri, headers: _headers()).timeout(_timeout);
@@ -395,6 +407,46 @@ class Registration {
         status: json['status']?.toString() ?? '',
         updatedAt:
             _parseDate(json['updatedAt']) ?? _parseDate(json['createdAt']),
+      );
+}
+
+class NewsItem {
+  final String id;
+  final String title;
+  final String body;
+  final String imageUrl;
+  final String type;
+  final DateTime? publishedAt;
+  final String stadiumName;
+  final String cityName;
+
+  NewsItem({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.imageUrl,
+    required this.type,
+    required this.publishedAt,
+    required this.stadiumName,
+    required this.cityName,
+  });
+
+  factory NewsItem.fromJson(Map<String, dynamic> json) => NewsItem(
+        id: json['id']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        body: json['body']?.toString() ?? '',
+        imageUrl: json['imageUrl']?.toString() ?? '',
+        type: json['type']?.toString() ?? 'MANUAL',
+        publishedAt:
+            _parseDate(json['publishedAt']) ?? _parseDate(json['createdAt']),
+        stadiumName:
+            (json['stadium'] as Map?)?['name']?.toString() ??
+                (json['match'] as Map?)?['stadium']?['name']?.toString() ??
+                '',
+        cityName:
+            (json['stadium'] as Map?)?['city']?.toString() ??
+                (json['match'] as Map?)?['stadium']?['city']?.toString() ??
+                '',
       );
 }
 

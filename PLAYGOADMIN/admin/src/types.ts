@@ -85,3 +85,120 @@ export type MatchRegistration = {
   match?: Match
   createdAt: string
 }
+
+export type NewsItem = {
+  id: string
+  title: string
+  body: string
+  imageUrl?: string | null
+  type: 'MANUAL' | 'STADIUM_CREATED' | 'MATCH_CREATED'
+  stadiumId?: string
+  matchId?: string
+  publishedAt: string
+  createdAt?: string
+  updatedAt?: string
+  stadium?: {
+    id: string
+    name: string
+    city?: string
+  } | null
+  match?: {
+    id: string
+    startTime: string
+    status: string
+    format: string
+    stadium?: {
+      id: string
+      name: string
+      city?: string
+    } | null
+  } | null
+}
+
+export type Sport = {
+  id: string
+  code: string
+  name: string
+  description?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type ClubSchedule = {
+  id?: string
+  title?: string
+  dayOfWeek?: number | null
+  startTime: string
+  endTime: string
+  ageGroup?: string
+  coachName?: string
+  note?: string
+}
+
+export type SportClub = {
+  id: string
+  sportId: string
+  sport?: Sport | null
+  cityId?: string
+  city?: string
+  name: string
+  kind?: string
+  address: string
+  description?: string
+  latitude?: number | string | null
+  longitude?: number | string | null
+  imageUrl?: string
+  yandexMapsUrl?: string
+  minAge?: number | null
+  maxAge?: number | null
+  coaches: string[]
+  schedules: ClubSchedule[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type MembershipPlan = {
+  id: string
+  sportId: string
+  sport?: Sport | null
+  clubId?: string
+  club?: {
+    id: string
+    name: string
+    city?: string
+    address?: string
+  } | null
+  title: string
+  description?: string
+  priceCents: number
+  currency: string
+  durationDays: number
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type UserSubscription = {
+  id: string
+  userId: string
+  user?: User | null
+  sportId: string
+  sport?: Sport | null
+  clubId?: string
+  club?: {
+    id: string
+    name: string
+    city?: string
+    address?: string
+  } | null
+  planId: string
+  plan?: MembershipPlan | null
+  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED'
+  startsAt: string
+  expiresAt: string
+  paidAt?: string | null
+  amountCents: number
+  currency: string
+  createdAt?: string
+  updatedAt?: string
+}

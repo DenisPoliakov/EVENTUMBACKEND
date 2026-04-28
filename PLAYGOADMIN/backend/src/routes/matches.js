@@ -1,5 +1,6 @@
 import express from 'express'
 import prisma from '../prisma.js'
+import { createNews } from '../lib/news.js'
 
 const router = express.Router()
 
@@ -43,6 +44,19 @@ router.post('/', async (req, res, next) => {
         approvalMode: approvalMode || 'MANUAL',
         description,
       },
+      include: {
+        stadium: { include: { city: true } },
+      },
+    })
+    await createNews({
+      title: `Доступен новый матч на стадионе "${match.stadium?.name || 'Стадион'}"`,
+      body: match.stadium?.city?.name
+        ? `Открыт новый матч на стадионе "${match.stadium.name}" в городе ${match.stadium.city.name}.`
+        : `Открыт новый матч на стадионе "${match.stadium?.name || 'Стадион'}".`,
+      imageUrl: match.stadium?.imageUrl || null,
+      type: 'MATCH_CREATED',
+      stadiumId: match.stadiumId,
+      matchId: match.id,
     })
     res.status(201).json(match)
   } catch (err) {

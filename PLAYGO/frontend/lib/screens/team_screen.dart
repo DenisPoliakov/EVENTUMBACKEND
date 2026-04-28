@@ -187,6 +187,100 @@ class _TeamScreenState extends State<TeamScreen> {
     }
   }
 
+  Future<void> _transferCaptain(TeamMemberItem member) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Передать капитанство?'),
+            content: Text(
+              'Игрок ${member.user.displayName} станет новым капитаном команды. Продолжить?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Отмена'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Передать'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final team = await widget.api.transferCaptain(
+        token: widget.token,
+        memberId: member.id,
+      );
+      if (!mounted) return;
+      setState(() => _team = team);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _removeMember(TeamMemberItem member) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Удалить из команды?'),
+            content: Text(
+              'Игрок ${member.user.displayName} будет удален из команды. Продолжить?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Отмена'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Удалить'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final team = await widget.api.removeTeamMember(
+        token: widget.token,
+        memberId: member.id,
+      );
+      if (!mounted) return;
+      setState(() => _team = team);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -483,6 +577,28 @@ class _TeamScreenState extends State<TeamScreen> {
                                                 }
                                               },
                                       ),
+                                      if (member.role != 'CAPTAIN') ...[
+                                        const SizedBox(height: 6),
+                                        TextButton(
+                                          onPressed: _saving
+                                              ? null
+                                              : () => _transferCaptain(member),
+                                          child: const Text(
+                                            'Передать капитанство',
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: _saving
+                                              ? null
+                                              : () => _removeMember(member),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.red,
+                                          ),
+                                          child: const Text(
+                                            'Удалить из команды',
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                               ],
