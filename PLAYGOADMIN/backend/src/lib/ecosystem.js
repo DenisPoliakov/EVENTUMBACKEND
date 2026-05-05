@@ -26,6 +26,21 @@ export const normalizeCoaches = (value) => {
     .filter(Boolean)
 }
 
+export const normalizeStringList = (value) => {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))]
+  }
+
+  return [
+    ...new Set(
+      String(value || '')
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ]
+}
+
 export const normalizeSchedules = (value) => {
   const raw = Array.isArray(value) ? value : []
   return raw
@@ -50,6 +65,41 @@ export const serializeSport = (sport) => ({
   updatedAt: sport.updatedAt,
 })
 
+export const serializeCoachProfile = (profile, options = {}) => {
+  const includeClub = options.includeClub !== false
+
+  return {
+    id: profile.id,
+    userId: profile.userId,
+    clubId: profile.clubId,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    experienceYears: profile.experienceYears,
+    achievements: profile.achievements || '',
+    photoUrl: profile.photoUrl || '',
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+    user: profile.user
+      ? {
+          id: profile.user.id,
+          email: profile.user.email,
+          username: profile.user.username || '',
+          firstName: profile.user.firstName || '',
+          lastName: profile.user.lastName || '',
+        }
+      : null,
+    club:
+      includeClub && profile.club
+        ? {
+            id: profile.club.id,
+            name: profile.club.name,
+            city: profile.club.city?.name || '',
+            sport: profile.club.sport ? serializeSport(profile.club.sport) : null,
+          }
+        : null,
+  }
+}
+
 export const serializeClub = (club) => ({
   id: club.id,
   sportId: club.sportId,
@@ -63,10 +113,20 @@ export const serializeClub = (club) => ({
   latitude: club.latitude,
   longitude: club.longitude,
   imageUrl: club.imageUrl || '',
+  galleryUrls: club.galleryUrls || [],
   yandexMapsUrl: club.yandexMapsUrl || '',
+  contactPhone: club.contactPhone || '',
+  contactEmail: club.contactEmail || '',
+  websiteUrl: club.websiteUrl || '',
+  telegramUrl: club.telegramUrl || '',
+  vkUrl: club.vkUrl || '',
+  instagramUrl: club.instagramUrl || '',
   minAge: club.minAge,
   maxAge: club.maxAge,
   coaches: club.coaches || [],
+  coachProfiles: (club.coachProfiles || []).map((profile) =>
+    serializeCoachProfile(profile, { includeClub: false }),
+  ),
   schedules: (club.schedules || []).map((schedule) => ({
     id: schedule.id,
     title: schedule.title || '',
@@ -143,7 +203,21 @@ export const serializeSubscription = (subscription) => ({
 export const clubInclude = {
   sport: true,
   city: true,
+  coachProfiles: {
+    include: { user: true },
+    orderBy: [{ experienceYears: 'desc' }, { createdAt: 'asc' }],
+  },
   schedules: { orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }] },
+}
+
+export const coachProfileInclude = {
+  user: true,
+  club: {
+    include: {
+      city: true,
+      sport: true,
+    },
+  },
 }
 
 export const planInclude = {

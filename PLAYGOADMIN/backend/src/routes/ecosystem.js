@@ -92,12 +92,14 @@ router.get('/me/subscriptions', requireAuth, async (req, res, next) => {
     const subscriptions = await prisma.userSubscription.findMany({
       where: {
         userId: req.auth.sub,
+        sportId: req.query.sportId || undefined,
+        clubId: req.query.clubId || undefined,
         status: req.query.status || undefined,
       },
       orderBy: { expiresAt: 'desc' },
       include: subscriptionInclude,
     })
-    res.json({ subscriptions: subscriptions.map(serializeSubscription) })
+    res.json(subscriptions.map(serializeSubscription))
   } catch (err) {
     next(err)
   }

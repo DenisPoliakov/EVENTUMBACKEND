@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
+import { api, uploadFile } from '../api/client'
 import { useCities, useClubs, useDeleteMutation, usePostMutation, usePutMutation, useSports } from '../api/hooks'
 import Select from '../components/Select'
 import type { ClubSchedule, SportClub } from '../types'
@@ -25,6 +26,41 @@ const emptySchedule = (): ClubSchedule => ({
   note: '',
 })
 
+const createEmptyForm = () => ({
+  sportId: '',
+  cityId: '',
+  name: '',
+  kind: '',
+  address: '',
+  description: '',
+  latitude: '',
+  longitude: '',
+  imageUrl: '',
+  galleryUrlsText: '',
+  yandexMapsUrl: '',
+  contactPhone: '',
+  contactEmail: '',
+  websiteUrl: '',
+  telegramUrl: '',
+  vkUrl: '',
+  instagramUrl: '',
+  minAge: '',
+  maxAge: '',
+  coaches: '',
+  schedules: [emptySchedule()],
+})
+
+const toAbsoluteUploadUrl = (relativeUrl: string) => {
+  const base = api.defaults.baseURL?.replace(/\/api(?:\/admin)?$/, '') || window.location.origin
+  return new URL(relativeUrl, base).toString()
+}
+
+const parseGalleryUrls = (value: string) =>
+  value
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+
 function ClubsPage() {
   const { data: sports } = useSports()
   const { data: cities } = useCities()
@@ -38,49 +74,27 @@ function ClubsPage() {
   const updateClub = usePutMutation((payload) => `/clubs/${payload.id}`, ['clubs'])
   const deleteClub = useDeleteMutation((id) => `/clubs/${id}`, ['clubs'])
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState({
-    sportId: '',
-    cityId: '',
-    name: '',
-    kind: '',
-    address: '',
-    description: '',
-    latitude: '',
-    longitude: '',
-    imageUrl: '',
-    yandexMapsUrl: '',
-    minAge: '',
-    maxAge: '',
-    coaches: '',
-    schedules: [emptySchedule()],
-  })
+  const [form, setForm] = useState(createEmptyForm)
 
-  const sportOptions = useMemo(() => [{ value: '', label: 'Все виды спорта' }, ...(sports || []).map((s) => ({ value: s.id, label: s.name }))], [sports])
-  const cityOptions = useMemo(() => [{ value: '', label: 'Все города' }, ...(cities || []).map((c) => ({ value: c.id, label: c.name }))], [cities])
+  const sportOptions = useMemo(
+    () => [{ value: '', label: 'Все виды спорта' }, ...(sports || []).map((s) => ({ value: s.id, label: s.name }))],
+    [sports],
+  )
+  const cityOptions = useMemo(
+    () => [{ value: '', label: 'Все города' }, ...(cities || []).map((c) => ({ value: c.id, label: c.name }))],
+    [cities],
+  )
+  const galleryPreview = useMemo(() => parseGalleryUrls(form.galleryUrlsText), [form.galleryUrlsText])
 
   const reset = () => {
     setEditingId(null)
-    setForm({
-      sportId: '',
-      cityId: '',
-      name: '',
-      kind: '',
-      address: '',
-      description: '',
-      latitude: '',
-      longitude: '',
-      imageUrl: '',
-      yandexMapsUrl: '',
-      minAge: '',
-      maxAge: '',
-      coaches: '',
-      schedules: [emptySchedule()],
-    })
+    setForm(createEmptyForm())
   }
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (!form.sportId || !form.name.trim() || !form.address.trim()) return
+
     const payload = {
       ...form,
       latitude: form.latitude || undefined,
@@ -89,8 +103,10 @@ function ClubsPage() {
       maxAge: form.maxAge || undefined,
       cityId: form.cityId || undefined,
       coaches: form.coaches.split(',').map((item) => item.trim()).filter(Boolean),
+      galleryUrls: galleryPreview,
       schedules: form.schedules.filter((item) => item.startTime && item.endTime),
     }
+
     if (editingId) updateClub.mutate({ id: editingId, ...payload })
     else createClub.mutate(payload)
     reset()
@@ -100,6 +116,30 @@ function ClubsPage() {
     setForm((prev) => ({
       ...prev,
       schedules: prev.schedules.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    }))
+  }
+
+  const uploadCover = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const relativeUrl = await uploadFile(file)
+    setForm((prev) => ({ ...prev, imageUrl: toAbsoluteUploadUrl(relativeUrl) }))
+  }
+
+  const uploadGallery = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+
+    const uploaded = await Promise.all(
+      files.map(async (file) => {
+        const relativeUrl = await uploadFile(file)
+        return toAbsoluteUploadUrl(relativeUrl)
+      }),
+    )
+
+    setForm((prev) => ({
+      ...prev,
+      galleryUrlsText: [...parseGalleryUrls(prev.galleryUrlsText), ...uploaded].join('\n'),
     }))
   }
 
@@ -163,9 +203,87 @@ function ClubsPage() {
             <div className="form-section-title">Долгота</div>
             <input className="input" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
           </div>
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <div className="form-section-title">Контакты клуба</div>
+          </div>
+          <div>
+            <div className="small-label">Телефон</div>
+            <input className="input" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} placeholder="+7..." />
+          </div>
+          <div>
+            <div className="small-label">Email</div>
+            <input className="input" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} placeholder="club@example.com" />
+          </div>
+          <div>
+            <div className="small-label">Сайт</div>
+            <input className="input" value={form.websiteUrl} onChange={(e) => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://..." />
+          </div>
+          <div>
+            <div className="small-label">Telegram</div>
+            <input className="input" value={form.telegramUrl} onChange={(e) => setForm({ ...form, telegramUrl: e.target.value })} placeholder="https://t.me/..." />
+          </div>
+          <div>
+            <div className="small-label">VK</div>
+            <input className="input" value={form.vkUrl} onChange={(e) => setForm({ ...form, vkUrl: e.target.value })} placeholder="https://vk.com/..." />
+          </div>
+          <div>
+            <div className="small-label">Instagram</div>
+            <input className="input" value={form.instagramUrl} onChange={(e) => setForm({ ...form, instagramUrl: e.target.value })} placeholder="https://instagram.com/..." />
+          </div>
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <div className="form-section-title">Главное фото клуба</div>
+            <input className="input" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://... или /uploads/..." />
+            <input className="input" type="file" accept="image/*" style={{ marginTop: 6 }} onChange={uploadCover} />
+            {form.imageUrl ? (
+              <img
+                src={form.imageUrl}
+                alt="Обложка клуба"
+                style={{ width: '100%', maxWidth: 320, height: 180, objectFit: 'cover', borderRadius: 14, marginTop: 10 }}
+              />
+            ) : null}
+          </div>
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <div className="form-section-title">Фотографии клуба</div>
+            <textarea
+              className="textarea"
+              rows={4}
+              value={form.galleryUrlsText}
+              onChange={(e) => setForm({ ...form, galleryUrlsText: e.target.value })}
+              placeholder={'По одной ссылке на строку\nhttps://...\nhttps://...'}
+            />
+            <input className="input" type="file" accept="image/*" multiple style={{ marginTop: 6 }} onChange={uploadGallery} />
+            {galleryPreview.length ? (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                  gap: 10,
+                  marginTop: 10,
+                }}
+              >
+                {galleryPreview.map((url) => (
+                  <img
+                    key={url}
+                    src={url}
+                    alt="Фото клуба"
+                    style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 12 }}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
           <div style={{ gridColumn: '1 / -1' }}>
             <div className="form-section-title">Тренеры через запятую</div>
-            <input className="input" value={form.coaches} onChange={(e) => setForm({ ...form, coaches: e.target.value })} />
+            <input
+              className="input"
+              value={form.coaches}
+              onChange={(e) => setForm({ ...form, coaches: e.target.value })}
+              placeholder="Для короткого списка. Полные карточки тренеры заполняют сами."
+            />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <div className="form-section-title">Описание</div>
@@ -189,52 +307,80 @@ function ClubsPage() {
             </button>
           </div>
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button className="button" type="submit">{editingId ? 'Сохранить' : 'Добавить клуб'}</button>
+            <button className="button" type="submit" disabled={createClub.isPending || updateClub.isPending}>
+              {editingId ? 'Сохранить' : 'Добавить клуб'}
+            </button>
             {editingId && <button className="button button-muted" type="button" onClick={reset}>Отмена</button>}
           </div>
         </form>
       </div>
 
       <div className="cards-grid" style={{ marginTop: 16 }}>
-        {clubs?.map((club: SportClub) => (
-          <div key={club.id} className="match-card">
-            <div className="small-label">{club.sport?.name || '—'} • {club.city || 'город не указан'}</div>
-            <div style={{ fontWeight: 800, fontSize: 18 }}>{club.name}</div>
-            <div>{club.address}</div>
-            {club.coaches?.length ? <div className="small-label">Тренеры: {club.coaches.join(', ')}</div> : null}
-            {club.schedules?.length ? <div className="small-label">Тренировок: {club.schedules.length}</div> : null}
-            <div className="table-actions">
-              <button
-                className="button"
-                type="button"
-                onClick={() => {
-                  setEditingId(club.id)
-                  setForm({
-                    sportId: club.sportId,
-                    cityId: club.cityId || '',
-                    name: club.name,
-                    kind: club.kind || '',
-                    address: club.address,
-                    description: club.description || '',
-                    latitude: club.latitude?.toString() || '',
-                    longitude: club.longitude?.toString() || '',
-                    imageUrl: club.imageUrl || '',
-                    yandexMapsUrl: club.yandexMapsUrl || '',
-                    minAge: club.minAge?.toString() || '',
-                    maxAge: club.maxAge?.toString() || '',
-                    coaches: club.coaches?.join(', ') || '',
-                    schedules: club.schedules?.length ? club.schedules : [emptySchedule()],
-                  })
-                }}
-              >
-                Редактировать
-              </button>
-              <button className="button button-danger" type="button" onClick={() => deleteClub.mutate(club.id)}>
-                Удалить
-              </button>
+        {clubs?.map((club: SportClub) => {
+          const previewImage = club.imageUrl || club.galleryUrls?.[0] || ''
+
+          return (
+            <div key={club.id} className="match-card">
+              {previewImage ? (
+                <img
+                  src={previewImage}
+                  alt={club.name}
+                  style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 14, marginBottom: 12 }}
+                />
+              ) : null}
+              <div className="small-label">{club.sport?.name || '—'} • {club.city || 'город не указан'}</div>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>{club.name}</div>
+              <div>{club.address}</div>
+              {club.contactPhone ? <div className="small-label">Телефон: {club.contactPhone}</div> : null}
+              {club.contactEmail ? <div className="small-label">Email: {club.contactEmail}</div> : null}
+              {club.coaches?.length ? <div className="small-label">Тренеры: {club.coaches.join(', ')}</div> : null}
+              {club.coachProfiles?.length ? (
+                <div className="small-label">
+                  Карточки тренеров: {club.coachProfiles.map((coach) => `${coach.firstName} ${coach.lastName}`).join(', ')}
+                </div>
+              ) : null}
+              {club.galleryUrls?.length ? <div className="small-label">Фото в галерее: {club.galleryUrls.length}</div> : null}
+              {club.schedules?.length ? <div className="small-label">Тренировок: {club.schedules.length}</div> : null}
+              <div className="table-actions">
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => {
+                    setEditingId(club.id)
+                    setForm({
+                      sportId: club.sportId,
+                      cityId: club.cityId || '',
+                      name: club.name,
+                      kind: club.kind || '',
+                      address: club.address,
+                      description: club.description || '',
+                      latitude: club.latitude?.toString() || '',
+                      longitude: club.longitude?.toString() || '',
+                      imageUrl: club.imageUrl || '',
+                      galleryUrlsText: club.galleryUrls?.join('\n') || '',
+                      yandexMapsUrl: club.yandexMapsUrl || '',
+                      contactPhone: club.contactPhone || '',
+                      contactEmail: club.contactEmail || '',
+                      websiteUrl: club.websiteUrl || '',
+                      telegramUrl: club.telegramUrl || '',
+                      vkUrl: club.vkUrl || '',
+                      instagramUrl: club.instagramUrl || '',
+                      minAge: club.minAge?.toString() || '',
+                      maxAge: club.maxAge?.toString() || '',
+                      coaches: club.coaches?.join(', ') || '',
+                      schedules: club.schedules?.length ? club.schedules : [emptySchedule()],
+                    })
+                  }}
+                >
+                  Редактировать
+                </button>
+                <button className="button button-danger" type="button" onClick={() => deleteClub.mutate(club.id)}>
+                  Удалить
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

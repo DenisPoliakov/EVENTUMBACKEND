@@ -8,6 +8,7 @@ import {
   splitName,
   verifyPassword,
 } from '../lib/auth.js'
+import { deleteUserAccount } from '../lib/userDeletion.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 
 const router = express.Router()
@@ -219,6 +220,16 @@ router.post('/me/password', requireAuth, async (req, res, next) => {
       data: { passwordHash: hashPassword(newPassword) },
     })
     return res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.delete('/me', requireAuth, async (req, res, next) => {
+  try {
+    const deleted = await deleteUserAccount(req.auth.sub)
+    if (!deleted) return res.status(404).json({ error: 'User not found' })
+    return res.status(204).send()
   } catch (err) {
     next(err)
   }
