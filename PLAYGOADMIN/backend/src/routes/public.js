@@ -1,6 +1,7 @@
 import express from 'express'
 import prisma from '../prisma.js'
 import playerCardRouter from './playerCards.js'
+import coachProfileRouter from './coachProfiles.js'
 import {
   ensureTeamForRegistration,
   getAutoApprovalStatus,
@@ -270,5 +271,6 @@ router.post('/registrations', async (req, res, next) => {
 })
 
 router.use('/', playerCardRouter)
+router.use('/', coachProfileRouter)
 
 export default router

@@ -1,6 +1,7 @@
 import express from 'express'
 import prisma from '../prisma.js'
 import { generateUsername } from '../lib/auth.js'
+import { deleteUserAccount } from '../lib/userDeletion.js'
 
 const router = express.Router()
 
@@ -150,10 +151,10 @@ router.patch('/:id/moderation', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    await prisma.user.delete({ where: { id: req.params.id } })
+    const deleted = await deleteUserAccount(req.params.id)
+    if (!deleted) return res.status(404).json({ error: 'User not found' })
     res.status(204).send()
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ error: 'User not found' })
     next(err)
   }
 })

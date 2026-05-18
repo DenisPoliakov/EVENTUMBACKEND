@@ -12,6 +12,12 @@ http://localhost:4000
 - приложение: `Authorization: Bearer <token>`
 - админка: `Authorization: Basic <base64(user:password)>`
 
+## Что добавлено в этом обновлении
+
+- пользовательский список абонементов закреплен за `GET /api/me/subscriptions`
+- добавлено удаление собственного аккаунта через `DELETE /api/me`
+- админское удаление пользователя теперь чистит связанные сущности пользователя корректно
+
 ## Быстрые правила
 
 - локальный backend по умолчанию работает на `http://localhost:4000`
@@ -19,6 +25,8 @@ http://localhost:4000
 - все admin-эндпоинты начинаются с `/api/admin/...`
 - для профиля, команды и карточки игрока используется логика `my resource`
 - если ручка требует токен, без `Bearer` вернется `401`
+- профиль не должен использовать `/api/admin/subscriptions`
+- для экрана абонементов в приложении используется `GET /api/me/subscriptions`
 - аккаунт пользователя общий для всей экосистемы
 - спортивные сущности разделяются по `sportId` / `sportCode`
 - футбол, бокс и будущие виды спорта живут в общей PostgreSQL-базе, но логически изолированы видом спорта
@@ -60,6 +68,9 @@ http://localhost:4000
     - `firstName`
     - `lastName`
     - `city`
+- `DELETE /api/me`
+  - Bearer required
+  - удаляет текущий аккаунт и связанные с ним пользовательские данные
 - `POST /api/me/password/check`
   - Bearer required
   - body:
@@ -71,9 +82,16 @@ http://localhost:4000
     - `newPassword`
 
 Логика:
+- `POST /api/auth/register` и `POST /api/auth/login` возвращают `accessToken` и объект `user`
 - `PATCH /api/me` используется для смены личных данных
 - `POST /api/me/password` используется для смены пароля
+- `DELETE /api/me` используется для полного удаления собственного аккаунта
 - если пользователь заблокирован на платформе, `/api/me` и авторизация могут вернуть `403`
+- при удалении аккаунта backend:
+  - удаляет карточку игрока, абонементы, приглашения и членства пользователя
+  - если пользователь капитан и в команде есть другой участник, капитанство передается ему автоматически
+  - если пользователь капитан и команда пустая кроме него, команда удаляется
+  - если вместе с командой удаляются заявки на матч, backend пересчитывает слоты и автоодобрение
 
 ### Stadiums And Matches
 
@@ -103,7 +121,7 @@ http://localhost:4000
   - фильтрует клубы/залы по городу, виду спорта и возрасту
 - `GET /api/clubs/:id`
   - подробная информация по клубу/залу
-  - возвращает адрес, тренеров, расписание, ссылку на Яндекс.Карты
+  - возвращает адрес, контакты, фото, тренеров, trainer cards, расписание, ссылку на Яндекс.Карты
 - `GET /api/subscription-plans`
   - query:
     - `sportId`
@@ -120,6 +138,8 @@ http://localhost:4000
 - `GET /api/me/subscriptions`
   - Bearer required
   - query:
+    - `sportId`
+    - `clubId`
     - `status`
   - список абонементов текущего пользователя
 - `GET /api/me/subscriptions/notifications`
@@ -129,9 +149,54 @@ http://localhost:4000
 Логика:
 - пользовательский аккаунт один для всех видов спорта
 - клубы и залы разделяются по виду спорта
+- у клуба есть обложка `imageUrl` и галерея `galleryUrls`
+- у клуба есть контактные поля:
+  - `contactPhone`
+  - `contactEmail`
+  - `websiteUrl`
+  - `telegramUrl`
+  - `vkUrl`
+  - `instagramUrl`
+- `GET /api/clubs` и `GET /api/clubs/:id` возвращают embedded trainer cards в поле `coachProfiles`
 - абонемент относится к виду спорта, опционально к конкретному клубу/залу
+- `GET /api/me/subscriptions` всегда возвращает только абонементы текущего пользователя по Bearer-токену
+- `GET /api/me/subscriptions` возвращает массив абонементов в той же модели, что и `GET /api/admin/subscriptions`
 - `POST /api/subscriptions` сейчас фиксирует успешную оплату на стороне backend и возвращает уведомление `PAYMENT_SUCCESS`
 - уведомление о сгорающем абонементе возвращается, если до конца осталось 7 дней или меньше
+
+### Coach Profiles
+
+- `GET /api/me/coach-profile`
+  - Bearer required
+  - получить свою текущую trainer card
+- `PUT /api/me/coach-profile`
+  - Bearer required
+  - create/update trainer card
+  - body:
+    - `clubId`
+    - `firstName`
+    - `lastName`
+    - optional:
+      - `experienceYears`
+      - `achievements`
+      - `photoUrl`
+- `POST /api/me/coach-profile/photo`
+  - Bearer required
+  - multipart/form-data
+  - field:
+    - `file`
+  - возвращает `url`
+
+Логика:
+- тренерская карточка привязывается к одному клубу
+- тренер сам заполняет свои данные
+- при просмотре клуба карточки тренеров приходят прямо в `coachProfiles`
+- в карточке тренера хранятся:
+  - имя
+  - фамилия
+  - стаж
+  - достижения
+  - фото
 
 ### Match Registrations
 
@@ -493,7 +558,14 @@ http://localhost:4000
       - `latitude`
       - `longitude`
       - `imageUrl`
+      - `galleryUrls`
       - `yandexMapsUrl`
+      - `contactPhone`
+      - `contactEmail`
+      - `websiteUrl`
+      - `telegramUrl`
+      - `vkUrl`
+      - `instagramUrl`
       - `minAge`
       - `maxAge`
       - `coaches`
@@ -522,7 +594,10 @@ http://localhost:4000
 
 Логика:
 - клуб/зал всегда относится к конкретному виду спорта
+- у клуба можно хранить и главное фото `imageUrl`, и галерею `galleryUrls`
+- контакты и соцсети клуба редактируются прямо в клубе
 - тренерский состав хранится массивом строк `coaches`
+- полные trainer cards живут отдельно и подтягиваются в `coachProfiles`
 - расписание хранится отдельными строками `schedules`
 - фильтр `age` проверяет `minAge` и `maxAge`
 
@@ -574,6 +649,8 @@ http://localhost:4000
 
 Логика:
 - здесь админ видит оплаченные абонементы пользователей
+- этот endpoint только для админки через Basic Auth
+- приложение не должно использовать `/api/admin/subscriptions` для профиля
 - статус можно вручную поменять, например отменить абонемент
 
 ### Uploads

@@ -135,6 +135,26 @@ export type ClubSchedule = {
   note?: string
 }
 
+export type CoachProfile = {
+  id: string
+  userId: string
+  clubId: string
+  firstName: string
+  lastName: string
+  experienceYears?: number | null
+  achievements?: string
+  photoUrl?: string
+  createdAt?: string
+  updatedAt?: string
+  user?: {
+    id: string
+    email?: string
+    username?: string
+    firstName?: string
+    lastName?: string
+  } | null
+}
+
 export type SportClub = {
   id: string
   sportId: string
@@ -148,10 +168,18 @@ export type SportClub = {
   latitude?: number | string | null
   longitude?: number | string | null
   imageUrl?: string
+  galleryUrls: string[]
   yandexMapsUrl?: string
+  contactPhone?: string
+  contactEmail?: string
+  websiteUrl?: string
+  telegramUrl?: string
+  vkUrl?: string
+  instagramUrl?: string
   minAge?: number | null
   maxAge?: number | null
   coaches: string[]
+  coachProfiles: CoachProfile[]
   schedules: ClubSchedule[]
   createdAt?: string
   updatedAt?: string

@@ -140,6 +140,7 @@ model User {
   blockedUntil DateTime?
   matchBanUntil DateTime?
   playerCard   PlayerCard?
+  coachProfile CoachProfile?
   memberships  TeamMember[]
   captainedTeams Team[]      @relation("UserCaptain")
   receivedTeamInvitations TeamInvitation[] @relation("TeamInvitationInvitee")
@@ -283,10 +284,18 @@ model SportClub {
   latitude      Decimal? @db.Decimal(9, 6)
   longitude     Decimal? @db.Decimal(9, 6)
   imageUrl      String?
+  galleryUrls   String[]
   yandexMapsUrl String?
+  contactPhone  String?
+  contactEmail  String?
+  websiteUrl    String?
+  telegramUrl   String?
+  vkUrl         String?
+  instagramUrl  String?
   minAge        Int?
   maxAge        Int?
   coaches       String[]
+  coachProfiles CoachProfile[]
   schedules     ClubSchedule[]
   plans         MembershipPlan[]
   subscriptions UserSubscription[]
@@ -296,6 +305,23 @@ model SportClub {
   @@index([sportId])
   @@index([cityId])
   @@unique([sportId, cityId, name])
+}
+
+model CoachProfile {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubId          String
+  club            SportClub @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  firstName       String
+  lastName        String
+  experienceYears Int?
+  achievements    String?
+  photoUrl        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([clubId])
 }
 
 model ClubSchedule {
