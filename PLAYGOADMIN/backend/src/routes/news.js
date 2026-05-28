@@ -1,19 +1,18 @@
 import express from 'express'
 import prisma from '../prisma.js'
-import { createNews, serializeNews } from '../lib/news.js'
+import { createNews, newsIncludeShape, serializeNews, syncNewsNotifications } from '../lib/news.js'
 
 const router = express.Router()
-
-const includeShape = {
-  stadium: { include: { city: true } },
-  match: { include: { stadium: { include: { city: true } } } },
-}
 
 router.get('/', async (req, res, next) => {
   try {
     const news = await prisma.news.findMany({
+      where: {
+        clubId: req.query.clubId || undefined,
+        type: req.query.type || undefined,
+      },
       orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
-      include: includeShape,
+      include: newsIncludeShape,
     })
     res.json(news.map(serializeNews))
   } catch (err) {
@@ -23,9 +22,13 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { title, body, imageUrl, publishedAt } = req.body
+    const { title, body, imageUrl, publishedAt, clubId } = req.body
     if (!title || !body) {
       return res.status(400).json({ error: 'title and body are required' })
+    }
+    if (clubId) {
+      const club = await prisma.sportClub.findUnique({ where: { id: String(clubId) } })
+      if (!club) return res.status(404).json({ error: 'Club not found' })
     }
 
     const news = await createNews({
@@ -33,6 +36,7 @@ router.post('/', async (req, res, next) => {
       body,
       imageUrl,
       publishedAt,
+      clubId,
       type: 'MANUAL',
     })
     res.status(201).json(serializeNews(news))
@@ -43,17 +47,23 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { title, body, imageUrl, publishedAt } = req.body
+    const { title, body, imageUrl, publishedAt, clubId } = req.body
+    if (clubId) {
+      const club = await prisma.sportClub.findUnique({ where: { id: String(clubId) } })
+      if (!club) return res.status(404).json({ error: 'Club not found' })
+    }
     const news = await prisma.news.update({
       where: { id: req.params.id },
       data: {
         title,
         body,
         imageUrl: imageUrl || null,
+        clubId: clubId || null,
         publishedAt: publishedAt ? new Date(publishedAt) : undefined,
       },
-      include: includeShape,
+      include: newsIncludeShape,
     })
+    await syncNewsNotifications(news)
     res.json(serializeNews(news))
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'News not found' })

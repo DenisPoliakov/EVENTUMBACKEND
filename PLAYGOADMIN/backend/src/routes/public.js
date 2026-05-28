@@ -9,7 +9,7 @@ import {
   hasActiveRegistrationForTeam,
   syncMatchStatusByCapacity,
 } from '../lib/registrations.js'
-import { serializeNews } from '../lib/news.js'
+import { newsIncludeShape, serializeNews } from '../lib/news.js'
 const router = express.Router()
 
 const hasActiveMatchBan = (user) =>
@@ -25,14 +25,19 @@ router.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-router.get('/news', async (_req, res, next) => {
+router.get('/news', async (req, res, next) => {
   try {
+    const rawLimit = Number.parseInt(String(req.query.limit || ''), 10)
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : undefined
+
     const news = await prisma.news.findMany({
-      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
-      include: {
-        stadium: { include: { city: true } },
-        match: { include: { stadium: { include: { city: true } } } },
+      where: {
+        clubId: req.query.clubId || undefined,
+        type: req.query.type || undefined,
       },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      include: newsIncludeShape,
+      take: limit,
     })
     res.json(news.map(serializeNews))
   } catch (err) {

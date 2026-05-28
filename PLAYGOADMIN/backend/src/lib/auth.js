@@ -77,6 +77,7 @@ export const authResponse = (user, cityName = '') => ({
     id: user.id,
     email: user.email,
     username: user.username || '',
+    phone: user.phone || '',
     firstName: user.firstName || '',
     lastName: user.lastName || '',
     city: cityName || user.city?.name || '',

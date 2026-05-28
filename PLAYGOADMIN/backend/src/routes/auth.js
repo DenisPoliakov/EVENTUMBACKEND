@@ -53,10 +53,26 @@ const uniqueUsername = async (seed) => {
   }
 }
 
+const serializeSelfUser = (user, cityName = '') => ({
+  id: user.id,
+  email: user.email,
+  username: user.username || '',
+  phone: user.phone || '',
+  firstName: user.firstName || '',
+  lastName: user.lastName || '',
+  city: cityName || user.city?.name || '',
+  isBlocked: Boolean(user.isBlocked),
+  blockReason: user.blockReason || '',
+  blockedUntil: user.blockedUntil || null,
+  matchBanUntil: user.matchBanUntil || null,
+  hasPlayerCard: Boolean(user.playerCard),
+})
+
 router.post('/auth/register', async (req, res, next) => {
   try {
     const email = normalizeIdentifier(req.body.email)
     const usernameInput = normalizeIdentifier(req.body.username)
+    const phone = String(req.body.phone || '').trim()
     const password = req.body.password || ''
     const firstName = (req.body.firstName || '').trim()
     const lastName = (req.body.lastName || '').trim()
@@ -75,6 +91,7 @@ router.post('/auth/register', async (req, res, next) => {
       data: {
         email,
         username,
+        phone: phone || null,
         firstName,
         lastName,
         name: `${firstName} ${lastName}`.trim() || username,
@@ -127,21 +144,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
     })
     if (!user) return res.status(401).json({ error: 'Unauthorized' })
     if (hasActiveBlock(user)) return res.status(403).json(buildBlockDetails(user))
-    return res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        city: user.city?.name || '',
-        isBlocked: Boolean(user.isBlocked),
-        blockReason: user.blockReason || '',
-        blockedUntil: user.blockedUntil || null,
-        matchBanUntil: user.matchBanUntil || null,
-        hasPlayerCard: Boolean(user.playerCard),
-      },
-    })
+    return res.json({ user: serializeSelfUser(user) })
   } catch (err) {
     next(err)
   }
@@ -150,11 +153,25 @@ router.get('/me', requireAuth, async (req, res, next) => {
 router.patch('/me', requireAuth, async (req, res, next) => {
   try {
     const email = normalizeIdentifier(req.body.email)
+    const username =
+      req.body.username === undefined ? undefined : normalizeIdentifier(req.body.username)
+    const phone =
+      req.body.phone === undefined ? undefined : String(req.body.phone || '').trim() || null
     const firstName = (req.body.firstName || '').trim()
     const lastName = (req.body.lastName || '').trim()
     const cityName = (req.body.city || '').trim()
     if (!email || !cityName) {
       return res.status(400).json({ error: 'email and city are required' })
+    }
+    if (req.body.username !== undefined && !username) {
+      return res.status(400).json({ error: 'username is required' })
+    }
+
+    if (username) {
+      const existing = await prisma.user.findUnique({ where: { username } })
+      if (existing && existing.id !== req.auth.sub) {
+        return res.status(409).json({ error: 'username is already taken' })
+      }
     }
 
     const city = await ensureCity(cityName)
@@ -162,31 +179,20 @@ router.patch('/me', requireAuth, async (req, res, next) => {
       where: { id: req.auth.sub },
       data: {
         email,
+        username,
+        phone,
         firstName,
         lastName,
-        name: `${firstName} ${lastName}`.trim() || email,
+        name: `${firstName} ${lastName}`.trim() || username || email,
         cityId: city?.id,
       },
       include: { city: true, playerCard: true },
     })
     if (hasActiveBlock(user)) return res.status(403).json(buildBlockDetails(user))
 
-    return res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        city: user.city?.name || cityName,
-        isBlocked: Boolean(user.isBlocked),
-        blockReason: user.blockReason || '',
-        blockedUntil: user.blockedUntil || null,
-        matchBanUntil: user.matchBanUntil || null,
-        hasPlayerCard: Boolean(user.playerCard),
-      },
-    })
+    return res.json({ user: serializeSelfUser(user, cityName) })
   } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'email or username is already taken' })
     next(err)
   }
 })

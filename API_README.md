@@ -14,8 +14,24 @@ http://localhost:4000
 
 ## Что добавлено в этом обновлении
 
+- исправлена серверная логика смены никнейма через `PATCH /api/me`
+- в профиль пользователя добавлен `phone`
+- добавлено избранное клубов:
+  - `GET /api/me/favorite-clubs`
+  - `POST /api/me/favorite-clubs`
+  - `DELETE /api/me/favorite-clubs/:clubId`
+- добавлена персональная лента новостей:
+  - `GET /api/me/news`
+- добавлены пользовательские уведомления по новостям любимых клубов:
+  - `GET /api/me/notifications`
+  - `PATCH /api/me/notifications/:id/read`
+  - `POST /api/me/notifications/read-all`
+- клубные новости теперь можно привязывать к `clubId`
+- в тренерскую карточку добавлены:
+  - обязательный номер телефона
+  - `maxUrl`
+  - `telegramUrl`
 - публичный поиск карточек тренеров по городу клуба: `GET /api/coach-profiles/search`
-
 - пользовательский список абонементов закреплен за `GET /api/me/subscriptions`
 - добавлено удаление собственного аккаунта через `DELETE /api/me`
 - админское удаление пользователя теперь чистит связанные сущности пользователя корректно
@@ -29,6 +45,9 @@ http://localhost:4000
 - если ручка требует токен, без `Bearer` вернется `401`
 - профиль не должен использовать `/api/admin/subscriptions`
 - для экрана абонементов в приложении используется `GET /api/me/subscriptions`
+- для избранного клубов используется `/api/me/favorite-clubs`
+- для персональной новостной ленты используется `/api/me/news`
+- для пользовательских уведомлений используется `/api/me/notifications`
 - аккаунт пользователя общий для всей экосистемы
 - спортивные сущности разделяются по `sportId` / `sportCode`
 - футбол, бокс и будущие виды спорта живут в общей PostgreSQL-базе, но логически изолированы видом спорта
@@ -55,6 +74,10 @@ http://localhost:4000
 
 - `GET /api/news`
   - публичный feed новостей для приложения
+  - query:
+    - `clubId`
+    - `type`
+    - `limit`
   - отдает и ручные новости, и автоновости про новые стадионы/матчи
 
 ### Auth
@@ -63,6 +86,8 @@ http://localhost:4000
   - body:
     - `email`
     - `username`
+    - optional:
+      - `phone`
     - `password`
     - `firstName`
     - `lastName`
@@ -78,6 +103,9 @@ http://localhost:4000
   - Bearer required
   - body:
     - `email`
+    - `username`
+    - optional:
+      - `phone`
     - `firstName`
     - `lastName`
     - `city`
@@ -96,7 +124,7 @@ http://localhost:4000
 
 Логика:
 - `POST /api/auth/register` и `POST /api/auth/login` возвращают `accessToken` и объект `user`
-- `PATCH /api/me` используется для смены личных данных
+- `PATCH /api/me` используется для смены личных данных, ника и телефона
 - `POST /api/me/password` используется для смены пароля
 - `DELETE /api/me` используется для полного удаления собственного аккаунта
 - если пользователь заблокирован на платформе, `/api/me` и авторизация могут вернуть `403`
@@ -105,6 +133,48 @@ http://localhost:4000
   - если пользователь капитан и в команде есть другой участник, капитанство передается ему автоматически
   - если пользователь капитан и команда пустая кроме него, команда удаляется
   - если вместе с командой удаляются заявки на матч, backend пересчитывает слоты и автоодобрение
+
+### Favorites, Personal News And Notifications
+
+- `GET /api/me/favorite-clubs`
+  - Bearer required
+  - список любимых клубов пользователя
+- `POST /api/me/favorite-clubs`
+  - Bearer required
+  - body:
+    - `clubId`
+- `DELETE /api/me/favorite-clubs/:clubId`
+  - Bearer required
+- `GET /api/me/news`
+  - Bearer required
+  - персональная лента новостей
+  - query:
+    - `favoritesOnly`
+    - `clubId`
+    - `type`
+    - `limit`
+- `GET /api/me/notifications`
+  - Bearer required
+  - уведомления по любимым клубам
+  - query:
+    - `unreadOnly`
+    - `type`
+    - `limit`
+- `PATCH /api/me/notifications/:id/read`
+  - Bearer required
+  - body:
+    - optional:
+      - `isRead`
+- `POST /api/me/notifications/read-all`
+  - Bearer required
+
+Логика:
+- favorite-клубы хранятся отдельно для каждого пользователя
+- `GET /api/me/news` возвращает общую новостную ленту, но новости любимых клубов поднимаются вверх
+- в `GET /api/me/news` у клубной новости будет `isFavoriteClubNews: true`, если клуб находится в избранном пользователя
+- при создании новости с `clubId` backend создает уведомления всем пользователям, у которых этот клуб в избранном на момент публикации
+- `GET /api/me/notifications` возвращает сохраненные пользовательские уведомления
+- уведомления можно отмечать прочитанными по одному или массово
 
 ### Stadiums And Matches
 
@@ -178,6 +248,7 @@ http://localhost:4000
   - `vkUrl`
   - `instagramUrl`
 - `GET /api/clubs` и `GET /api/clubs/:id` возвращают embedded trainer cards в поле `coachProfiles`
+- у клуба можно хранить список пользователей, которые добавили его в избранное
 - абонемент относится к виду спорта, опционально к конкретному клубу/залу
 - `GET /api/me/subscriptions` всегда возвращает только абонементы текущего пользователя по Bearer-токену
 - `GET /api/me/subscriptions` возвращает массив абонементов в той же модели, что и `GET /api/admin/subscriptions`
@@ -196,10 +267,13 @@ http://localhost:4000
     - `clubId`
     - `firstName`
     - `lastName`
+    - `phone`
     - optional:
       - `experienceYears`
       - `achievements`
       - `photoUrl`
+      - `maxUrl`
+      - `telegramUrl`
 - `POST /api/me/coach-profile/photo`
   - Bearer required
   - multipart/form-data
@@ -210,13 +284,17 @@ http://localhost:4000
 Логика:
 - тренерская карточка привязывается к одному клубу
 - тренер сам заполняет свои данные
+- телефон тренера обязателен
 - при просмотре клуба карточки тренеров приходят прямо в `coachProfiles`
 - в карточке тренера хранятся:
   - имя
   - фамилия
+  - телефон
   - стаж
   - достижения
   - фото
+  - ссылка на MAX
+  - ссылка на Telegram
 
 ### Match Registrations
 
@@ -468,6 +546,7 @@ http://localhost:4000
     - `passwordHash`
     - optional:
       - `username`
+      - `phone`
       - `firstName`
       - `lastName`
       - `role`
@@ -475,10 +554,12 @@ http://localhost:4000
 - `PUT /api/admin/users/:id`
   - body:
     - любые изменяемые поля пользователя
+    - включая `phone`
 - `PATCH /api/admin/users/:id/moderation`
   - body:
     - optional:
       - `username`
+      - `phone`
       - `role`
       - `isBlocked`
       - `blockReason`
@@ -514,11 +595,15 @@ http://localhost:4000
 
 - `GET /api/admin/news`
   - список всех новостей для админки
+  - query:
+    - `clubId`
+    - `type`
 - `POST /api/admin/news`
   - body:
     - `title`
     - `body`
     - optional:
+      - `clubId`
       - `imageUrl`
       - `publishedAt`
 - `PUT /api/admin/news/:id`
@@ -526,12 +611,15 @@ http://localhost:4000
     - `title`
     - `body`
     - optional:
+      - `clubId`
       - `imageUrl`
       - `publishedAt`
 - `DELETE /api/admin/news/:id`
 
 Логика:
 - ручные новости создаются через `/api/admin/news`
+- если у ручной новости указан `clubId`, она считается клубной новостью
+- при создании клубной новости backend рассылает уведомления пользователям, у которых этот клуб в избранном
 - автоновости создаются backend автоматически при создании новых стадионов и матчей
 - в приложении весь feed читается через `GET /api/news`
 

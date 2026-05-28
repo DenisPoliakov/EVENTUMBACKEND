@@ -74,9 +74,12 @@ export const serializeCoachProfile = (profile, options = {}) => {
     clubId: profile.clubId,
     firstName: profile.firstName,
     lastName: profile.lastName,
+    phone: profile.user?.phone || '',
     experienceYears: profile.experienceYears,
     achievements: profile.achievements || '',
     photoUrl: profile.photoUrl || '',
+    maxUrl: profile.maxUrl || '',
+    telegramUrl: profile.telegramUrl || '',
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
     user: profile.user
@@ -84,6 +87,7 @@ export const serializeCoachProfile = (profile, options = {}) => {
           id: profile.user.id,
           email: profile.user.email,
           username: profile.user.username || '',
+          phone: profile.user.phone || '',
           firstName: profile.user.firstName || '',
           lastName: profile.user.lastName || '',
         }
@@ -217,6 +221,12 @@ export const coachProfileInclude = {
       city: true,
       sport: true,
     },
+  },
+}
+
+export const favoriteClubInclude = {
+  club: {
+    include: clubInclude,
   },
 }
 

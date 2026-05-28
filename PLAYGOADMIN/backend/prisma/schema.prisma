@@ -66,6 +66,10 @@ enum NewsType {
   MATCH_CREATED
 }
 
+enum UserNotificationType {
+  FAVORITE_CLUB_NEWS
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -128,6 +132,7 @@ model User {
   id           String        @id @default(uuid())
   email        String        @unique
   username     String?       @unique
+  phone        String?
   name         String
   firstName    String?
   lastName     String?
@@ -146,6 +151,8 @@ model User {
   receivedTeamInvitations TeamInvitation[] @relation("TeamInvitationInvitee")
   sentTeamInvitations TeamInvitation[] @relation("TeamInvitationInviter")
   subscriptions UserSubscription[]
+  favoriteClubs FavoriteClub[]
+  notifications UserNotification[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -247,16 +254,20 @@ model News {
   body        String
   imageUrl    String?
   type        NewsType @default(MANUAL)
+  clubId      String?
+  club        SportClub? @relation(fields: [clubId], references: [id], onDelete: SetNull)
   stadiumId   String?
   stadium     Stadium? @relation(fields: [stadiumId], references: [id])
   matchId     String?
   match       Match?   @relation(fields: [matchId], references: [id])
+  notifications UserNotification[]
   publishedAt DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([publishedAt])
   @@index([type])
+  @@index([clubId])
 }
 
 model Sport {
@@ -296,9 +307,12 @@ model SportClub {
   maxAge        Int?
   coaches       String[]
   coachProfiles CoachProfile[]
+  news          News[]
   schedules     ClubSchedule[]
   plans         MembershipPlan[]
   subscriptions UserSubscription[]
+  favoritedBy   FavoriteClub[]
+  notifications UserNotification[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -318,10 +332,47 @@ model CoachProfile {
   experienceYears Int?
   achievements    String?
   photoUrl        String?
+  maxUrl          String?
+  telegramUrl     String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([clubId])
+}
+
+model FavoriteClub {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubId    String
+  club      SportClub @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, clubId])
+  @@index([userId])
+  @@index([clubId])
+}
+
+model UserNotification {
+  id        String               @id @default(uuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      UserNotificationType
+  title     String
+  body      String
+  imageUrl  String?
+  clubId    String?
+  club      SportClub?           @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  newsId    String?
+  news      News?                @relation(fields: [newsId], references: [id], onDelete: SetNull)
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([clubId])
+  @@index([newsId])
 }
 
 model ClubSchedule {

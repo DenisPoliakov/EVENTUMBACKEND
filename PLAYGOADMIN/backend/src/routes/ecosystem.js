@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js'
 import {
   clubInclude,
   coachProfileInclude,
+  favoriteClubInclude,
   normalizeSportCode,
   planInclude,
   serializeClub,
@@ -14,6 +15,13 @@ import {
   subscriptionInclude,
   toNullableInt,
 } from '../lib/ecosystem.js'
+import { newsIncludeShape, serializeNews } from '../lib/news.js'
+import {
+  notificationInclude,
+  serializeFavoriteClub,
+  serializeUserNotification,
+  sortNewsWithFavoritesFirst,
+} from '../lib/personalization.js'
 
 const router = express.Router()
 
@@ -21,6 +29,23 @@ const daysFromNow = (days, start = new Date()) => {
   const result = new Date(start)
   result.setDate(result.getDate() + days)
   return result
+}
+
+const toBoolean = (value) => String(value || '').trim().toLowerCase() === 'true'
+
+const getLimitedValue = (value, defaultValue, maxValue = 100) => {
+  const parsed = toNullableInt(value)
+  if (parsed == null) return defaultValue
+  return Math.min(Math.max(parsed, 1), maxValue)
+}
+
+const getFavoriteClubIds = async (userId) => {
+  const favorites = await prisma.favoriteClub.findMany({
+    where: { userId },
+    select: { clubId: true },
+  })
+
+  return favorites.map((favorite) => favorite.clubId)
 }
 
 router.get('/sports', async (_req, res, next) => {
@@ -116,6 +141,178 @@ router.get('/clubs/:id', async (req, res, next) => {
     })
     if (!club) return res.status(404).json({ error: 'Club not found' })
     res.json(serializeClub(club))
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.get('/me/favorite-clubs', requireAuth, async (req, res, next) => {
+  try {
+    const favorites = await prisma.favoriteClub.findMany({
+      where: { userId: req.auth.sub },
+      include: favoriteClubInclude,
+      orderBy: { createdAt: 'desc' },
+    })
+
+    res.json({
+      favoriteClubs: favorites.map(serializeFavoriteClub),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.post('/me/favorite-clubs', requireAuth, async (req, res, next) => {
+  try {
+    const clubId = String(req.body.clubId || '').trim()
+    if (!clubId) return res.status(400).json({ error: 'clubId is required' })
+
+    const club = await prisma.sportClub.findUnique({ where: { id: clubId } })
+    if (!club) return res.status(404).json({ error: 'Club not found' })
+
+    const favorite = await prisma.favoriteClub.upsert({
+      where: {
+        userId_clubId: {
+          userId: req.auth.sub,
+          clubId,
+        },
+      },
+      update: {},
+      create: {
+        userId: req.auth.sub,
+        clubId,
+      },
+      include: favoriteClubInclude,
+    })
+
+    res.status(201).json({
+      favoriteClub: serializeFavoriteClub(favorite),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.delete('/me/favorite-clubs/:clubId', requireAuth, async (req, res, next) => {
+  try {
+    await prisma.favoriteClub.deleteMany({
+      where: {
+        userId: req.auth.sub,
+        clubId: req.params.clubId,
+      },
+    })
+
+    res.status(204).send()
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.get('/me/news', requireAuth, async (req, res, next) => {
+  try {
+    const favoriteClubIds = await getFavoriteClubIds(req.auth.sub)
+    const favoritesOnly = toBoolean(req.query.favoritesOnly)
+    const limit = getLimitedValue(req.query.limit, 40, 100)
+    const clubId = String(req.query.clubId || '').trim()
+    const type = String(req.query.type || '').trim()
+
+    if (favoritesOnly && favoriteClubIds.length === 0) {
+      return res.json({ news: [] })
+    }
+
+    const fetchLimit = favoritesOnly ? limit : Math.min(Math.max(limit * 4, 50), 200)
+    const rows = await prisma.news.findMany({
+      where: {
+        type: type || undefined,
+        clubId: clubId || (favoritesOnly ? { in: favoriteClubIds } : undefined),
+      },
+      include: newsIncludeShape,
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      take: fetchLimit,
+    })
+
+    const serialized = rows.map((row) => serializeNews(row, { favoriteClubIds }))
+    const news = sortNewsWithFavoritesFirst(serialized).slice(0, limit)
+
+    res.json({ news })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.get('/me/notifications', requireAuth, async (req, res, next) => {
+  try {
+    const favoriteClubIds = await getFavoriteClubIds(req.auth.sub)
+    const unreadOnly = toBoolean(req.query.unreadOnly)
+    const type = String(req.query.type || '').trim()
+    const limit = getLimitedValue(req.query.limit, 50, 100)
+
+    const notifications = await prisma.userNotification.findMany({
+      where: {
+        userId: req.auth.sub,
+        type: type || undefined,
+        readAt: unreadOnly ? null : undefined,
+      },
+      include: notificationInclude,
+      orderBy: [{ readAt: 'asc' }, { createdAt: 'desc' }],
+      take: limit,
+    })
+
+    res.json({
+      notifications: notifications.map((notification) =>
+        serializeUserNotification(notification, { favoriteClubIds }),
+      ),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.patch('/me/notifications/:id/read', requireAuth, async (req, res, next) => {
+  try {
+    const existing = await prisma.userNotification.findFirst({
+      where: {
+        id: req.params.id,
+        userId: req.auth.sub,
+      },
+    })
+    if (!existing) return res.status(404).json({ error: 'Notification not found' })
+
+    const isRead = req.body.isRead === undefined ? true : Boolean(req.body.isRead)
+    const notification = await prisma.userNotification.update({
+      where: { id: existing.id },
+      data: {
+        readAt: isRead ? new Date() : null,
+      },
+      include: notificationInclude,
+    })
+
+    const favoriteClubIds = await getFavoriteClubIds(req.auth.sub)
+    res.json({
+      notification: serializeUserNotification(notification, { favoriteClubIds }),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.post('/me/notifications/read-all', requireAuth, async (req, res, next) => {
+  try {
+    const now = new Date()
+    const result = await prisma.userNotification.updateMany({
+      where: {
+        userId: req.auth.sub,
+        readAt: null,
+      },
+      data: {
+        readAt: now,
+      },
+    })
+
+    res.json({
+      updatedCount: result.count,
+      readAt: now,
+    })
   } catch (err) {
     next(err)
   }

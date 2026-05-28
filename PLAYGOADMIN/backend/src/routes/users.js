@@ -69,7 +69,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { email, name, username, firstName, lastName, passwordHash, role = 'USER', cityId } = req.body
+    const { email, name, username, phone, firstName, lastName, passwordHash, role = 'USER', cityId } = req.body
     if (!email || !name || !passwordHash) {
       return res.status(400).json({ error: 'email, name and passwordHash are required' })
     }
@@ -78,6 +78,7 @@ router.post('/', async (req, res, next) => {
         email,
         name,
         username: username || generateUsername(email),
+        phone: phone || null,
         firstName: firstName || null,
         lastName: lastName || null,
         passwordHash,
@@ -93,10 +94,10 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { email, name, username, firstName, lastName, passwordHash, role, cityId } = req.body
+    const { email, name, username, phone, firstName, lastName, passwordHash, role, cityId } = req.body
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: { email, name, username, firstName, lastName, passwordHash, role, cityId },
+      data: { email, name, username, phone, firstName, lastName, passwordHash, role, cityId },
     })
     res.json(user)
   } catch (err) {
@@ -109,6 +110,7 @@ router.patch('/:id/moderation', async (req, res, next) => {
   try {
     const {
       username,
+      phone,
       isBlocked,
       blockReason,
       blockedUntil,
@@ -120,6 +122,7 @@ router.patch('/:id/moderation', async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         username: username === undefined ? undefined : username || null,
+        phone: phone === undefined ? undefined : phone || null,
         role: role || undefined,
         isBlocked: isBlocked === undefined ? undefined : Boolean(isBlocked),
         blockReason: blockReason === undefined ? undefined : blockReason || null,
