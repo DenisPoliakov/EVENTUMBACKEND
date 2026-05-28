@@ -310,9 +310,60 @@
 
 .crm-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  grid-template-columns: repeat(8, minmax(112px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.crm-sport-panel {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.crm-sport-panel h3 {
+  margin-top: 4px;
+}
+
+.crm-sport-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+  gap: 10px;
+}
+
+.crm-sport-tab {
+  min-height: 74px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #e8edf2;
+  cursor: pointer;
+  text-align: left;
+}
+
+.crm-sport-tab:hover,
+.crm-sport-tab.active {
+  border-color: rgba(37, 193, 111, 0.38);
+  background: rgba(37, 193, 111, 0.08);
+}
+
+.crm-sport-tab strong,
+.crm-sport-tab span {
+  display: block;
+}
+
+.crm-sport-tab strong {
+  color: #f6fff8;
+  font-size: 0.95rem;
+}
+
+.crm-sport-tab span {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .crm-kpi {
@@ -418,6 +469,260 @@
   font-size: 0.72rem;
   font-style: normal;
   font-weight: 800;
+}
+
+.crm-coach-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.crm-club-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.crm-club-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.crm-club-media {
+  width: 112px;
+  min-height: 150px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.18), rgba(37, 193, 111, 0.16));
+  display: grid;
+  place-items: center;
+  color: #f6fff8;
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+
+.crm-club-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.crm-club-content {
+  min-width: 0;
+}
+
+.crm-club-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crm-club-head strong {
+  display: block;
+  color: #f6fff8;
+  overflow-wrap: anywhere;
+}
+
+.crm-club-head p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.crm-club-head em {
+  flex: 0 0 auto;
+  color: #b8f7d3;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.crm-club-action {
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.crm-club-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.crm-club-stats div {
+  min-height: 58px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px;
+  background: rgba(15, 23, 32, 0.55);
+}
+
+.crm-club-stats span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.crm-club-stats strong {
+  display: block;
+  margin-top: 3px;
+  color: #f4f7fb;
+}
+
+.crm-club-lines {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.crm-club-lines span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.crm-club-subgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.crm-club-subgrid div {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.crm-club-subgrid h4 {
+  margin-bottom: 7px;
+  color: #e8edf2;
+  font-size: 0.82rem;
+}
+
+.crm-club-subgrid span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.crm-coach-card {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.crm-coach-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(37, 193, 111, 0.18), rgba(96, 165, 250, 0.16));
+  display: grid;
+  place-items: center;
+  color: #f6fff8;
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+
+.crm-coach-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.crm-coach-body {
+  min-width: 0;
+}
+
+.crm-coach-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.crm-coach-head strong {
+  display: block;
+  color: #f6fff8;
+  overflow-wrap: anywhere;
+}
+
+.crm-coach-head p,
+.crm-coach-description {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.crm-coach-head em {
+  flex: 0 0 auto;
+  color: #bfdbfe;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.crm-coach-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+
+.crm-coach-meta span {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #d9e2ec;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.crm-coach-description {
+  display: -webkit-box;
+  margin-top: 9px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.crm-coach-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.crm-coach-stats div {
+  min-height: 58px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px;
+  background: rgba(15, 23, 32, 0.55);
+}
+
+.crm-coach-stats span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.crm-coach-stats strong {
+  display: block;
+  margin-top: 3px;
+  color: #f4f7fb;
 }
 
 .crm-filters {
@@ -627,6 +932,9 @@
 @media (max-width: 860px) {
   .crm-kpi-grid,
   .crm-attention-grid,
+  .crm-sport-panel,
+  .crm-coach-grid,
+  .crm-club-grid,
   .crm-client-facts,
   .crm-mini-stats {
     grid-template-columns: 1fr;
@@ -643,6 +951,24 @@
   .crm-filters {
     grid-template-columns: 1fr;
     width: 100%;
+  }
+
+  .crm-coach-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .crm-club-card {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-club-media {
+    width: 100%;
+    min-height: 160px;
+  }
+
+  .crm-club-stats,
+  .crm-club-subgrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

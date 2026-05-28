@@ -78,10 +78,10 @@ export const useSubscriptions = (filters: { sportId?: string; clubId?: string; u
     queryFn: async () => (await api.get('/subscriptions', { params: filters })).data,
   })
 
-export const useCrmOverview = () =>
+export const useCrmOverview = (sportCode?: string) =>
   useQuery<CrmOverview>({
-    queryKey: ['crm-overview'],
-    queryFn: async () => (await api.get('/crm/overview')).data,
+    queryKey: ['crm-overview', sportCode || 'ALL'],
+    queryFn: async () => (await api.get('/crm/overview', { params: { sportCode } })).data,
   })
 
 // Generic mutation helper to invalidate keys

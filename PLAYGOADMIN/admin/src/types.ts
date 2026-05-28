@@ -281,7 +281,94 @@ export type CrmClient = {
   activity: CrmActivityItem[]
 }
 
+export type CrmCoach = {
+  id: string
+  userId: string
+  name: string
+  phone?: string
+  email?: string
+  username?: string
+  experienceYears?: number | null
+  description?: string
+  achievements?: string
+  photoUrl?: string
+  telegramUrl?: string
+  club?: {
+    id: string
+    name: string
+    kind?: string
+    city?: string
+    sport?: Sport | null
+  } | null
+  stats: {
+    activeStudents: number
+    totalStudents: number
+    prospects: number
+    chats: number
+  }
+}
+
+export type CrmClub = {
+  id: string
+  name: string
+  kind?: string
+  city?: string
+  address: string
+  description?: string
+  imageUrl?: string
+  contactPhone?: string
+  contactEmail?: string
+  websiteUrl?: string
+  telegramUrl?: string
+  vkUrl?: string
+  instagramUrl?: string
+  sport?: Sport | null
+  nextAction: string
+  stats: {
+    coaches: number
+    schedules: number
+    plans: number
+    activePlans: number
+    subscriptions: number
+    activeSubscriptions: number
+    expiringSubscriptions: number
+    favoriteUsers: number
+    revenue: {
+      amountCents: number
+      currency: string
+    }
+  }
+  coaches: Array<{
+    id: string
+    name: string
+    phone?: string
+  }>
+  schedules: Array<{
+    id: string
+    title?: string
+    dayOfWeek?: number | null
+    startTime: string
+    endTime: string
+    ageGroup?: string
+    coachName?: string
+  }>
+}
+
 export type CrmOverview = {
+  sports: Array<{
+    code: string
+    name: string
+  }>
+  selectedSportCode: string
+  sportBreakdown: Array<{
+    code: string
+    name: string
+    clients: number
+    pendingRegistrations: number
+    activeSubscriptions: number
+    coaches: number
+    clubs: number
+  }>
   summary: {
     clientsTotal: number
     newClientsWeek: number
@@ -294,11 +381,15 @@ export type CrmOverview = {
       currency: string
     }
     matchesNeedTeams: number
+    coaches: number
+    clubs: number
   }
   attention: {
     pendingRegistrations: MatchRegistration[]
     expiringSubscriptions: UserSubscription[]
     matchesNeedTeams: Array<Match & { approvedTeams: number; emptySlots: number }>
   }
+  clubs: CrmClub[]
+  coaches: CrmCoach[]
   clients: CrmClient[]
 }

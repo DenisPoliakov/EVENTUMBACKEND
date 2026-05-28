@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useCrmOverview } from '../api/hooks'
-import type { CrmClient, CrmClientStatus } from '../types'
+import type { CrmClient, CrmClientStatus, CrmCoach, CrmClub } from '../types'
 import Select from '../components/Select'
 
 const statusLabels: Record<CrmClientStatus, string> = {
@@ -23,7 +23,8 @@ const statusOptions = [
 ]
 
 function CrmPage() {
-  const { data, isLoading } = useCrmOverview()
+  const [sportCode, setSportCode] = useState('ALL')
+  const { data, isLoading } = useCrmOverview(sportCode)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
@@ -60,8 +61,42 @@ function CrmPage() {
           <h2 style={{ margin: '4px 0 0' }}>CRM EVENTUM</h2>
         </div>
         <div className="crm-header-meta">
+          <span>{data?.sports.find((sport) => sport.code === sportCode)?.name || 'Все направления'}</span>
           <span>{data?.summary.clientsTotal || 0} клиентов</span>
           <span>{data?.summary.pendingRegistrations || 0} заявок ждут</span>
+        </div>
+      </div>
+
+      <div className="panel crm-sport-panel">
+        <div>
+          <div className="small-label">Разделение по спорту</div>
+          <h3>Направления</h3>
+        </div>
+        <div className="crm-sport-tabs">
+          {(data?.sports || [{ code: 'ALL', name: 'Все направления' }]).map((sport) => {
+            const breakdown = data?.sportBreakdown.find((item) => item.code === sport.code)
+            return (
+              <button
+                key={sport.code}
+                type="button"
+                className={`crm-sport-tab ${sport.code === sportCode ? 'active' : ''}`}
+                onClick={() => {
+                  setSportCode(sport.code)
+                  setSelectedClientId(null)
+                }}
+              >
+                <strong>{sport.name}</strong>
+                {sport.code !== 'ALL' && breakdown ? (
+                  <span>
+                    {breakdown.clients} клиентов · {breakdown.coaches} тренеров
+                    {breakdown.clubs ? ` · ${breakdown.clubs} клубов` : ''}
+                  </span>
+                ) : (
+                  <span>общий обзор</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -71,6 +106,8 @@ function CrmPage() {
         <Kpi title="Заявки" value={data?.summary.pendingRegistrations || 0} detail="ждут модерации" tone="warning" />
         <Kpi title="Абонементы" value={data?.summary.activeSubscriptions || 0} detail={`${data?.summary.expiringSubscriptions || 0} истекают`} />
         <Kpi title="Выручка" value={formatMoney(data?.summary.revenue.amountCents || 0, data?.summary.revenue.currency || 'RUB')} detail="по абонементам" />
+        <Kpi title="Клубы" value={data?.summary.clubs || 0} detail="площадки и залы" />
+        <Kpi title="Тренеры" value={data?.summary.coaches || 0} detail="профили в CRM" />
         <Kpi title="Матчи" value={data?.summary.matchesNeedTeams || 0} detail="нужны команды" tone="warning" />
       </div>
 
@@ -114,6 +151,38 @@ function CrmPage() {
                   badge: match.status,
                 }))}
               />
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="crm-panel-title">
+              <div>
+                <div className="small-label">Клубная сеть</div>
+                <h3>Клубы, залы и продажи</h3>
+              </div>
+            </div>
+            <div className="crm-club-grid">
+              {(data?.clubs || []).length ? (
+                (data?.clubs || []).map((club) => <ClubCard key={club.id} club={club} />)
+              ) : (
+                <div className="small-label">В этом направлении клубов пока нет</div>
+              )}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="crm-panel-title">
+              <div>
+                <div className="small-label">Тренерский состав</div>
+                <h3>Тренеры и подопечные</h3>
+              </div>
+            </div>
+            <div className="crm-coach-grid">
+              {(data?.coaches || []).length ? (
+                (data?.coaches || []).map((coach) => <CoachCard key={coach.id} coach={coach} />)
+              ) : (
+                <div className="small-label">В этом направлении тренеров пока нет</div>
+              )}
             </div>
           </div>
 
@@ -163,6 +232,106 @@ function CrmPage() {
       </div>
     </div>
   )
+}
+
+function ClubCard({ club }: { club: CrmClub }) {
+  const contacts = [club.contactPhone, club.contactEmail, club.websiteUrl, club.telegramUrl].filter(Boolean)
+
+  return (
+    <div className="crm-club-card">
+      <div className="crm-club-media">
+        {club.imageUrl ? <img src={club.imageUrl} alt="" /> : <span>{club.name.slice(0, 1)}</span>}
+      </div>
+      <div className="crm-club-content">
+        <div className="crm-club-head">
+          <div>
+            <strong>{club.name}</strong>
+            <p>{[club.kind, club.city, club.sport?.name].filter(Boolean).join(' · ') || club.address}</p>
+          </div>
+          <em>{formatMoney(club.stats.revenue.amountCents, club.stats.revenue.currency)}</em>
+        </div>
+
+        <div className="crm-next-action crm-club-action">
+          <div className="small-label">Следующее действие</div>
+          <strong>{club.nextAction}</strong>
+        </div>
+
+        <div className="crm-club-stats">
+          <Fact label="Активные" value={club.stats.activeSubscriptions} />
+          <Fact label="Избранное" value={club.stats.favoriteUsers} />
+          <Fact label="Тренеры" value={club.stats.coaches} />
+          <Fact label="Расписание" value={club.stats.schedules} />
+        </div>
+
+        <div className="crm-club-lines">
+          <span>{club.address}</span>
+          <span>{contacts.length ? contacts.join(' · ') : 'Контакты не указаны'}</span>
+          <span>
+            {club.stats.activePlans} активных планов · {club.stats.expiringSubscriptions} продлений на неделе
+          </span>
+        </div>
+
+        <div className="crm-club-subgrid">
+          <div>
+            <h4>Тренеры</h4>
+            {club.coaches.length ? (
+              club.coaches.map((coach) => <span key={coach.id}>{coach.name}</span>)
+            ) : (
+              <span>Не назначены</span>
+            )}
+          </div>
+          <div>
+            <h4>Ближайшие слоты</h4>
+            {club.schedules.length ? (
+              club.schedules.map((schedule) => (
+                <span key={schedule.id}>
+                  {formatWeekday(schedule.dayOfWeek)} {schedule.startTime}-{schedule.endTime}
+                </span>
+              ))
+            ) : (
+              <span>Расписание пустое</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CoachCard({ coach }: { coach: CrmCoach }) {
+  return (
+    <div className="crm-coach-card">
+      <div className="crm-coach-avatar">
+        {coach.photoUrl ? <img src={coach.photoUrl} alt="" /> : <span>{coach.name.slice(0, 1) || 'T'}</span>}
+      </div>
+      <div className="crm-coach-body">
+        <div className="crm-coach-head">
+          <div>
+            <strong>{coach.name || coach.username || 'Тренер'}</strong>
+            <p>{coach.club?.name || 'Клуб не привязан'}</p>
+          </div>
+          <em>{coach.club?.sport?.name || 'Спорт'}</em>
+        </div>
+        <div className="crm-coach-meta">
+          <span>{coach.club?.city || 'Город не указан'}</span>
+          <span>{coach.experienceYears ? `${coach.experienceYears} лет опыта` : 'Опыт не указан'}</span>
+        </div>
+        {coach.description && <p className="crm-coach-description">{coach.description}</p>}
+        <div className="crm-coach-stats">
+          <Fact label="Активные" value={coach.stats.activeStudents} />
+          <Fact label="Всего" value={coach.stats.totalStudents} />
+          <Fact label="Потенциал" value={coach.stats.prospects} />
+          <Fact label="Чаты" value={coach.stats.chats} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function formatWeekday(value?: number | null) {
+  const labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+  if (value === null || value === undefined) return 'День'
+  return labels[value - 1] || labels[value] || 'День'
 }
 
 function Kpi({ title, value, detail, tone }: { title: string; value: string | number; detail: string; tone?: 'warning' }) {
