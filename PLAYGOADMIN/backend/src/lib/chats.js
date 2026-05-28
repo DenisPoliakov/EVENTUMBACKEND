@@ -75,7 +75,7 @@ const serializeCoachPreview = (coachProfile) =>
   coachProfile
     ? {
         id: coachProfile.id,
-        clubId: coachProfile.clubId,
+        clubId: coachProfile.clubId || '',
         firstName: coachProfile.firstName,
         lastName: coachProfile.lastName,
         experienceYears: coachProfile.experienceYears,

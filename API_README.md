@@ -37,10 +37,10 @@ http://localhost:4000
   - `PATCH /api/me/notifications/:id/read`
   - `POST /api/me/notifications/read-all`
 - клубные новости теперь можно привязывать к `clubId`
-- в тренерскую карточку добавлены:
+- тренерский профиль упрощен:
   - обязательный номер телефона
-  - `maxUrl`
-  - `telegramUrl`
+  - описание тренера
+  - привязка к клубу стала опциональной
 - публичный поиск карточек тренеров по городу клуба: `GET /api/coach-profiles/search`
 - пользовательский список абонементов закреплен за `GET /api/me/subscriptions`
 - добавлено удаление собственного аккаунта через `DELETE /api/me`
@@ -320,16 +320,14 @@ http://localhost:4000
   - Bearer required
   - create/update trainer card
   - body:
-    - `clubId`
     - `firstName`
     - `lastName`
     - `phone`
     - optional:
+      - `clubId`
       - `experienceYears`
-      - `achievements`
+      - `description`
       - `photoUrl`
-      - `maxUrl`
-      - `telegramUrl`
 - `POST /api/me/coach-profile/photo`
   - Bearer required
   - multipart/form-data
@@ -338,19 +336,18 @@ http://localhost:4000
   - возвращает `url`
 
 Логика:
-- тренерская карточка привязывается к одному клубу
+- привязка тренера к клубу опциональна
 - тренер сам заполняет свои данные
 - телефон тренера обязателен
-- при просмотре клуба карточки тренеров приходят прямо в `coachProfiles`
+- если тренер привязан к клубу, то при просмотре клуба его карточка приходит в `coachProfiles`
+- поиск `GET /api/coach-profiles/search` работает только по тренерам, у которых есть привязка к клубу
 - в карточке тренера хранятся:
   - имя
   - фамилия
   - телефон
   - стаж
-  - достижения
+  - описание тренера
   - фото
-  - ссылка на MAX
-  - ссылка на Telegram
 
 ### Match Registrations
 

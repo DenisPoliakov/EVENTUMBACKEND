@@ -332,11 +332,12 @@ model CoachProfile {
   id              String    @id @default(uuid())
   userId          String    @unique
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clubId          String
-  club            SportClub @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId          String?
+  club            SportClub? @relation(fields: [clubId], references: [id], onDelete: SetNull)
   firstName       String
   lastName        String
   experienceYears Int?
+  description     String?
   achievements    String?
   photoUrl        String?
   maxUrl          String?

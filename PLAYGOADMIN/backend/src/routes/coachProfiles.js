@@ -29,7 +29,10 @@ const buildPayload = (body) => ({
   lastName: String(body.lastName || '').trim(),
   phone: String(body.phone || '').trim(),
   experienceYears: toNullableInt(body.experienceYears),
-  achievements: String(body.achievements || '').trim() || null,
+  description:
+    String(body.description || '').trim() ||
+    String(body.achievements || '').trim() ||
+    null,
   photoUrl: String(body.photoUrl || '').trim() || null,
   maxUrl: String(body.maxUrl || '').trim() || null,
   telegramUrl: String(body.telegramUrl || '').trim() || null,
@@ -53,12 +56,14 @@ router.get('/me/coach-profile', requireAuth, async (req, res, next) => {
 router.put('/me/coach-profile', requireAuth, async (req, res, next) => {
   try {
     const payload = buildPayload(req.body)
-    if (!payload.clubId || !payload.firstName || !payload.lastName) {
-      return res.status(400).json({ error: 'clubId, firstName and lastName are required' })
+    if (!payload.firstName || !payload.lastName) {
+      return res.status(400).json({ error: 'firstName and lastName are required' })
     }
 
-    const club = await prisma.sportClub.findUnique({ where: { id: payload.clubId } })
-    if (!club) return res.status(404).json({ error: 'Club not found' })
+    if (payload.clubId) {
+      const club = await prisma.sportClub.findUnique({ where: { id: payload.clubId } })
+      if (!club) return res.status(404).json({ error: 'Club not found' })
+    }
 
     const user = await prisma.user.findUnique({ where: { id: req.auth.sub } })
     if (!user) return res.status(401).json({ error: 'Unauthorized' })
@@ -76,22 +81,24 @@ router.put('/me/coach-profile', requireAuth, async (req, res, next) => {
       return tx.coachProfile.upsert({
         where: { userId: user.id },
         update: {
-          clubId: payload.clubId,
+          clubId: payload.clubId || null,
           firstName: payload.firstName,
           lastName: payload.lastName,
           experienceYears: payload.experienceYears,
-          achievements: payload.achievements,
+          description: payload.description,
+          achievements: payload.description,
           photoUrl: payload.photoUrl,
           maxUrl: payload.maxUrl,
           telegramUrl: payload.telegramUrl,
         },
         create: {
           userId: user.id,
-          clubId: payload.clubId,
+          clubId: payload.clubId || null,
           firstName: payload.firstName,
           lastName: payload.lastName,
           experienceYears: payload.experienceYears,
-          achievements: payload.achievements,
+          description: payload.description,
+          achievements: payload.description,
           photoUrl: payload.photoUrl,
           maxUrl: payload.maxUrl,
           telegramUrl: payload.telegramUrl,
