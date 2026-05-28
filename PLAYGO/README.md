@@ -80,7 +80,7 @@ WEBHOOK_URL=
 Запуск backend:
 
 ```bash
-cd /Users/deniska/Desktop/EVENTUM/PLAYGOADMIN/backend
+cd PLAYGOADMIN/backend
 npx prisma generate
 npx prisma db push
 npm run dev

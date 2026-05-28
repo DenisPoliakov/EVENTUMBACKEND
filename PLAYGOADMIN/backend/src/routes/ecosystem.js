@@ -3,8 +3,11 @@ import prisma from '../prisma.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 import {
   clubInclude,
+  coachProfileInclude,
+  normalizeSportCode,
   planInclude,
   serializeClub,
+  serializeCoachProfile,
   serializePlan,
   serializeSport,
   serializeSubscription,
@@ -52,6 +55,54 @@ router.get('/clubs', async (req, res, next) => {
       include: clubInclude,
     })
     res.json(clubs.map(serializeClub))
+  } catch (err) {
+    next(err)
+  }
+})
+
+/// Поиск карточек тренеров по городу клуба (`city` или `cityId`) и опционально виду спорта (`sportCode`).
+router.get('/coach-profiles/search', async (req, res, next) => {
+  try {
+    const cityId = String(req.query.cityId || '').trim()
+    const cityName = String(req.query.city || '').trim()
+    const sportCodeRaw = req.query.sportCode
+    const sportCode =
+      typeof sportCodeRaw === 'string' && sportCodeRaw.trim()
+        ? normalizeSportCode(sportCodeRaw)
+        : ''
+    const rawLimit = toNullableInt(req.query.limit)
+    const limit =
+      typeof rawLimit === 'number'
+        ? Math.min(Math.max(rawLimit, 1), 50)
+        : 24
+
+    if (!cityId && !cityName) {
+      return res.status(400).json({
+        error: 'cityId or city is required',
+        message: 'Укажите cityId города клуба или city (название).',
+      })
+    }
+
+    const clubWhere = {}
+    if (cityId) {
+      clubWhere.cityId = cityId
+    } else {
+      clubWhere.city = { name: { equals: cityName, mode: 'insensitive' } }
+    }
+    if (sportCode) {
+      clubWhere.sport = { code: sportCode }
+    }
+
+    const rows = await prisma.coachProfile.findMany({
+      where: { club: clubWhere },
+      orderBy: [{ experienceYears: 'desc' }, { createdAt: 'asc' }],
+      take: limit,
+      include: coachProfileInclude,
+    })
+
+    res.json({
+      coaches: rows.map((row) => serializeCoachProfile(row)),
+    })
   } catch (err) {
     next(err)
   }
