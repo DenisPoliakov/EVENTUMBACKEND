@@ -15,6 +15,7 @@ import newsRouter from './routes/news.js'
 import uploadRouter from './routes/uploads.js'
 import publicRouter from './routes/public.js'
 import teamHubRouter from './routes/teamHub.js'
+import chatsRouter from './routes/chats.js'
 import ecosystemRouter from './routes/ecosystem.js'
 import sportRouter from './routes/sports.js'
 import clubRouter from './routes/clubs.js'
@@ -36,6 +37,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')
 app.use('/api', publicRouter)
 app.use('/api', authRouter)
 app.use('/api', teamHubRouter)
+app.use('/api', chatsRouter)
 app.use('/api', ecosystemRouter)
 
 // Простейшая базовая авторизация для админки

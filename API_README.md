@@ -14,6 +14,16 @@ http://localhost:4000
 
 ## Что добавлено в этом обновлении
 
+- добавлены direct-чаты между пользователями
+- добавлен чат пользователя с тренером через `coachProfileId`
+- добавлены ручки:
+  - `GET /api/me/chats`
+  - `POST /api/me/chats/direct`
+  - `POST /api/me/chats/coach-profile/:coachProfileId`
+  - `GET /api/me/chats/:chatId`
+  - `GET /api/me/chats/:chatId/messages`
+  - `POST /api/me/chats/:chatId/messages`
+  - `POST /api/me/chats/:chatId/read`
 - исправлена серверная логика смены никнейма через `PATCH /api/me`
 - в профиль пользователя добавлен `phone`
 - добавлено избранное клубов:
@@ -45,6 +55,7 @@ http://localhost:4000
 - если ручка требует токен, без `Bearer` вернется `401`
 - профиль не должен использовать `/api/admin/subscriptions`
 - для экрана абонементов в приложении используется `GET /api/me/subscriptions`
+- для direct-чатов используется `/api/me/chats/...`
 - для избранного клубов используется `/api/me/favorite-clubs`
 - для персональной новостной ленты используется `/api/me/news`
 - для пользовательских уведомлений используется `/api/me/notifications`
@@ -133,6 +144,51 @@ http://localhost:4000
   - если пользователь капитан и в команде есть другой участник, капитанство передается ему автоматически
   - если пользователь капитан и команда пустая кроме него, команда удаляется
   - если вместе с командой удаляются заявки на матч, backend пересчитывает слоты и автоодобрение
+
+### Chats
+
+- `GET /api/me/chats`
+  - Bearer required
+  - список direct-диалогов текущего пользователя
+  - query:
+    - `limit`
+- `POST /api/me/chats/direct`
+  - Bearer required
+  - создать или получить существующий direct-чат с другим пользователем
+  - body:
+    - `userId`
+- `POST /api/me/chats/coach-profile/:coachProfileId`
+  - Bearer required
+  - создать или получить direct-чат с тренером по его `coachProfileId`
+- `GET /api/me/chats/:chatId`
+  - Bearer required
+  - получить метаинформацию одного чата
+- `GET /api/me/chats/:chatId/messages`
+  - Bearer required
+  - получить сообщения чата
+  - query:
+    - `limit`
+    - `before` — ISO timestamp для пагинации назад
+- `POST /api/me/chats/:chatId/messages`
+  - Bearer required
+  - body:
+    - `text`
+- `POST /api/me/chats/:chatId/read`
+  - Bearer required
+  - отметить чат прочитанным для текущего пользователя
+
+Логика:
+- чаты сейчас только direct, один на один
+- один и тот же набор двух пользователей всегда получает один и тот же чат
+- тренерский чат не отдельная сущность: это такой же direct-чат, просто второй участник имеет `coachProfile`
+- в списке чатов backend возвращает:
+  - `otherUser`
+  - `lastMessage`
+  - `unreadCount`
+  - `lastReadAt`
+- в `otherUser` приходит `isCoach`, а если это тренер, то еще и краткий `coachProfile`
+- отправка сообщения обновляет `updatedAt` чата и last-read для отправителя
+- читать и писать сообщения может только участник соответствующего чата
 
 ### Favorites, Personal News And Notifications
 
