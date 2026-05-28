@@ -21,6 +21,7 @@ import sportRouter from './routes/sports.js'
 import clubRouter from './routes/clubs.js'
 import subscriptionPlanRouter from './routes/subscriptionPlans.js'
 import subscriptionRouter from './routes/subscriptions.js'
+import crmRouter from './routes/crm.js'
 import { ensureDefaultSports } from './lib/defaultSports.js'
 
 const app = express()
@@ -65,6 +66,7 @@ app.use('/api/admin/sports', sportRouter)
 app.use('/api/admin/clubs', clubRouter)
 app.use('/api/admin/subscription-plans', subscriptionPlanRouter)
 app.use('/api/admin/subscriptions', subscriptionRouter)
+app.use('/api/admin/crm', crmRouter)
 app.use('/api/admin/uploads', uploadRouter)
 
 // Fallback 404

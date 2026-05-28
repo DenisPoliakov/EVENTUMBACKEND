@@ -18,6 +18,7 @@ const ecosystemNavItems = [
 ]
 
 const commonNavItems = [
+  { to: '/crm', label: 'CRM' },
   { to: '/cities', label: 'Города' },
   { to: '/users', label: 'Пользователи' },
   { to: '/news', label: 'Новости' },

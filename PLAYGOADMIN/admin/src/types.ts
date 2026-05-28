@@ -230,3 +230,75 @@ export type UserSubscription = {
   createdAt?: string
   updatedAt?: string
 }
+
+export type CrmClientStatus = 'NEW' | 'ACTIVE' | 'VIP' | 'AT_RISK' | 'NEEDS_ATTENTION' | 'BLOCKED'
+
+export type CrmActivityItem = {
+  id: string
+  type: string
+  title: string
+  meta?: string
+  at: string
+}
+
+export type CrmClient = {
+  id: string
+  name: string
+  firstName?: string | null
+  lastName?: string | null
+  username?: string | null
+  email: string
+  phone?: string | null
+  city?: City | null
+  role: 'ADMIN' | 'USER'
+  isBlocked?: boolean
+  blockedUntil?: string | null
+  matchBanUntil?: string | null
+  createdAt: string
+  updatedAt: string
+  status: CrmClientStatus
+  segments: string[]
+  nextAction: string
+  lastActivityAt?: string | null
+  stats: {
+    registrations: number
+    pendingRegistrations: number
+    approvedRegistrations: number
+    rejectedRegistrations: number
+    teams: number
+    captainedTeams: number
+    subscriptions: number
+    activeSubscriptions: number
+    favoriteClubs: number
+  }
+  registrations: MatchRegistration[]
+  subscriptions: UserSubscription[]
+  favoriteClubs: Array<{
+    id: string
+    createdAt: string
+    club?: SportClub | null
+  }>
+  activity: CrmActivityItem[]
+}
+
+export type CrmOverview = {
+  summary: {
+    clientsTotal: number
+    newClientsWeek: number
+    activeClientsMonth: number
+    pendingRegistrations: number
+    activeSubscriptions: number
+    expiringSubscriptions: number
+    revenue: {
+      amountCents: number
+      currency: string
+    }
+    matchesNeedTeams: number
+  }
+  attention: {
+    pendingRegistrations: MatchRegistration[]
+    expiringSubscriptions: UserSubscription[]
+    matchesNeedTeams: Array<Match & { approvedTeams: number; emptySlots: number }>
+  }
+  clients: CrmClient[]
+}

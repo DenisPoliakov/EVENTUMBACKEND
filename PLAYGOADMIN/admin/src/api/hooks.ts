@@ -11,6 +11,7 @@ import type {
   SportClub,
   MembershipPlan,
   UserSubscription,
+  CrmOverview,
 } from '../types'
 import type { User } from '../types'
 
@@ -75,6 +76,12 @@ export const useSubscriptions = (filters: { sportId?: string; clubId?: string; u
   useQuery<UserSubscription[]>({
     queryKey: ['subscriptions', filters],
     queryFn: async () => (await api.get('/subscriptions', { params: filters })).data,
+  })
+
+export const useCrmOverview = () =>
+  useQuery<CrmOverview>({
+    queryKey: ['crm-overview'],
+    queryFn: async () => (await api.get('/crm/overview')).data,
   })
 
 // Generic mutation helper to invalidate keys

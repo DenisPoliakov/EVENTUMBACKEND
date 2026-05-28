@@ -12,6 +12,7 @@ import SportsPage from './pages/SportsPage'
 import ClubsPage from './pages/ClubsPage'
 import SubscriptionPlansPage from './pages/SubscriptionPlansPage'
 import SubscriptionsPage from './pages/SubscriptionsPage'
+import CrmPage from './pages/CrmPage'
 import LoginPage from './pages/LoginPage'
 import { api, setAuthCredentials } from './api/client'
 import './App.css'
@@ -61,6 +62,7 @@ function App() {
         <Route path="/clubs" element={<ClubsPage />} />
         <Route path="/subscription-plans" element={<SubscriptionPlansPage />} />
         <Route path="/subscriptions" element={<SubscriptionsPage />} />
+        <Route path="/crm" element={<CrmPage />} />
         <Route path="/" element={<Navigate to="/cities" replace />} />
       </Routes>
     </Layout>
