@@ -3,6 +3,7 @@ import prisma from '../prisma.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 import {
   buildChatLastReadPatch,
+  createChatTextMessage,
   getDirectChatByIdForUser,
   getDirectChatInclude,
   messageInclude,
@@ -10,6 +11,7 @@ import {
   serializeChatMessage,
   serializeDirectChat,
 } from '../lib/chats.js'
+import { broadcastChatMessage, broadcastChatRead } from '../lib/chatRealtime.js'
 
 const router = express.Router()
 
@@ -172,28 +174,8 @@ router.post('/me/chats/:chatId/messages', requireAuth, async (req, res, next) =>
     const text = String(req.body.text || '').trim()
     if (!text) return res.status(400).json({ error: 'text is required' })
 
-    const now = new Date()
-    const message = await prisma.$transaction(async (tx) => {
-      const created = await tx.chatMessage.create({
-        data: {
-          chatId: chat.id,
-          senderUserId: req.auth.sub,
-          text,
-          type: 'TEXT',
-        },
-        include: messageInclude,
-      })
-
-      await tx.directChat.update({
-        where: { id: chat.id },
-        data: {
-          ...buildChatLastReadPatch(chat, req.auth.sub, now),
-          updatedAt: now,
-        },
-      })
-
-      return created
-    })
+    const message = await createChatTextMessage(chat, req.auth.sub, text)
+    await broadcastChatMessage({ chatId: chat.id, message })
 
     res.status(201).json({
       message: serializeChatMessage(message),
@@ -214,6 +196,7 @@ router.post('/me/chats/:chatId/read', requireAuth, async (req, res, next) => {
       data: buildChatLastReadPatch(chat, req.auth.sub, now),
       include: getDirectChatInclude(),
     })
+    await broadcastChatRead({ chatId: chat.id, userId: req.auth.sub, readAt: now.toISOString() })
 
     res.json({
       chat: await serializeDirectChat(updated, req.auth.sub),

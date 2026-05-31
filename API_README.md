@@ -147,6 +147,27 @@ http://localhost:4000
 
 ### Chats
 
+Realtime:
+- WebSocket endpoint: `ws://localhost:4000/api/ws/chats?token=<accessToken>`
+- авторизация тем же app-токеном, что и REST: `Bearer <token>`
+- realtime работает поверх тех же `DirectChat` / `ChatMessage`
+- REST-отправка сообщения через `POST /api/me/chats/:chatId/messages` тоже рассылает WS-события участникам чата
+- REST-отметка прочтения через `POST /api/me/chats/:chatId/read` тоже рассылает WS-события участникам чата
+
+Client → server:
+- `{"type":"ping"}`
+- `{"type":"chat:subscribe","chatId":"..."}`
+- `{"type":"chat:message:send","chatId":"...","text":"...","clientMessageId":"optional-local-id"}`
+- `{"type":"chat:read","chatId":"..."}`
+
+Server → client:
+- `{"type":"connected","userId":"...","at":"..."}`
+- `{"type":"pong","at":"..."}`
+- `{"type":"chat:subscribed","chatId":"...","chat":{...}}`
+- `{"type":"chat:message","chatId":"...","message":{...},"chat":{...},"clientMessageId":"..."}`
+- `{"type":"chat:read","chatId":"...","userId":"...","readAt":"...","chat":{...}}`
+- `{"type":"error","code":"...","message":"..."}`
+
 - `GET /api/me/chats`
   - Bearer required
   - список direct-диалогов текущего пользователя

@@ -154,4 +154,30 @@ export const getDirectChatByIdForUser = async (chatId, userId) =>
     include: directChatInclude,
   })
 
+export const createChatTextMessage = async (chat, senderUserId, text) => {
+  const now = new Date()
+
+  return prisma.$transaction(async (tx) => {
+    const message = await tx.chatMessage.create({
+      data: {
+        chatId: chat.id,
+        senderUserId,
+        text,
+        type: 'TEXT',
+      },
+      include: messageInclude,
+    })
+
+    await tx.directChat.update({
+      where: { id: chat.id },
+      data: {
+        ...buildChatLastReadPatch(chat, senderUserId, now),
+        updatedAt: now,
+      },
+    })
+
+    return message
+  })
+}
+
 export const getDirectChatInclude = () => directChatInclude

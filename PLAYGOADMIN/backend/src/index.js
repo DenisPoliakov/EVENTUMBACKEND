@@ -23,6 +23,7 @@ import subscriptionPlanRouter from './routes/subscriptionPlans.js'
 import subscriptionRouter from './routes/subscriptions.js'
 import crmRouter from './routes/crm.js'
 import { ensureDefaultSports } from './lib/defaultSports.js'
+import { attachChatRealtime } from './lib/chatRealtime.js'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -96,6 +97,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     console.error('Default sports seed failed', err)
   })
 })
+attachChatRealtime(server)
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
