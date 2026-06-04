@@ -28,6 +28,13 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage })
 
+const removeUploadedFile = (url) => {
+  if (!url || !url.startsWith('/uploads/players/')) return
+  const filename = path.basename(url)
+  const filePath = path.join(uploadDir, filename)
+  fs.promises.unlink(filePath).catch(() => {})
+}
+
 const normalizeList = (values, allowed, maxCount = 3) => {
   const raw = Array.isArray(values) ? values : []
   const unique = [...new Set(raw.map((item) => String(item || '').trim().toUpperCase()).filter(Boolean))]
@@ -277,8 +284,35 @@ router.post('/me/player-card/avatar', requireAuth, upload.single('file'), async 
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
     const url = `/uploads/players/${req.file.filename}`
-    res.status(201).json({ url })
+
+    const existingCard = await prisma.playerCard.findUnique({
+      where: { userId: req.auth.sub },
+      include: includeShape,
+    })
+
+    if (!existingCard) {
+      return res.status(201).json({
+        url,
+        playerCard: null,
+        savedToDatabase: false,
+      })
+    }
+
+    const updatedCard = await prisma.playerCard.update({
+      where: { userId: req.auth.sub },
+      data: { avatarUrl: url },
+      include: includeShape,
+    })
+
+    removeUploadedFile(existingCard.avatarUrl)
+
+    res.status(201).json({
+      url,
+      playerCard: serializeCard(updatedCard),
+      savedToDatabase: true,
+    })
   } catch (err) {
+    if (req.file) removeUploadedFile(`/uploads/players/${req.file.filename}`)
     next(err)
   }
 })

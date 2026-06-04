@@ -429,7 +429,12 @@ Server → client:
   - multipart/form-data
   - field:
     - `file`
-  - возвращает `url`
+  - сохраняет файл в `/uploads/players`
+  - если карточка игрока уже существует, сразу обновляет `avatarUrl` в БД
+  - возвращает:
+    - `url`
+    - `savedToDatabase`
+    - `playerCard`
 
 Логика:
 - сильные стороны ограничены списком `PACE`, `SHOOTING`, `PASSING`, `DRIBBLING`, `STAMINA`, `DEFENDING`
@@ -440,6 +445,7 @@ Server → client:
 - `PUT /api/me/player-card` работает как `upsert`
   - если карточки нет, создаст
   - если карточка уже есть, обновит
+- `POST /api/me/player-card/avatar` хранит сам файл на диске backend, а в БД хранится путь в `PlayerCard.avatarUrl`
 
 Обязательные поля для `PUT /api/me/player-card`:
 - `position`
