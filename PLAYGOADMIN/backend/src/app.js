@@ -21,6 +21,7 @@ import cityRouter from './routes/cities.js'
 import clubRouter from './routes/clubs.js'
 import crmRouter from './routes/crm.js'
 import ecosystemRouter from './routes/ecosystem.js'
+import friendsRouter from './routes/friends.js'
 import matchRouter from './routes/matches.js'
 import newsRouter from './routes/news.js'
 import ordersRouter from './routes/orders.js'
@@ -90,6 +91,7 @@ export const createApp = () => {
   app.use('/api', authRouter)
   app.use('/api', teamHubRouter)
   app.use('/api', chatsRouter)
+  app.use('/api', friendsRouter)
   app.use('/api', ecosystemRouter)
   app.use('/api', wellnessStoriesPublicRouter)
   app.use('/api', workoutProgramsPublicRouter)

@@ -35,6 +35,16 @@ http://localhost:4000
   - `GET /api/me/chats/:chatId/messages`
   - `POST /api/me/chats/:chatId/messages`
   - `POST /api/me/chats/:chatId/read`
+- добавлен поиск пользователей по username и друзья (чтобы чаты не терялись):
+  - `GET /api/users/search`
+  - `GET /api/me/friends`
+  - `GET /api/me/friends/requests`
+  - `GET /api/me/friends/outgoing`
+  - `POST /api/me/friends`
+  - `POST /api/me/friends/:friendshipId/accept`
+  - `POST /api/me/friends/:friendshipId/reject`
+  - `DELETE /api/me/friends/:userId`
+- `GET /api/clubs` поддерживает поиск по названию через `q` / `name`
 - исправлена серверная логика смены никнейма через `PATCH /api/me`
 - в профиль пользователя добавлен `phone`
 - добавлено избранное клубов:
@@ -445,6 +455,43 @@ Server → client:
   - Bearer required
   - отметить чат прочитанным для текущего пользователя
 
+### Users Search And Friends
+
+Чтобы чаты не терялись, пользователей ищут по username и добавляют в друзья. При принятии заявки backend сразу создаёт (или находит) direct-чат и отдаёт `chatId` в списках друзей.
+
+- `GET /api/users/search`
+  - Bearer required
+  - поиск пользователей по username (основной критерий) и имени
+  - query:
+    - `username` или `q` — обязателен (минимум 1 символ)
+    - `limit` — необязательно (по умолчанию 20, макс. 50)
+  - ответ: `{ "users": [ { user, friendshipId, friendshipStatus, relation, chatId }, ... ], "q": "..." }`
+  - `relation`: `NONE` | `PENDING_OUTGOING` | `PENDING_INCOMING` | `FRIENDS`
+- `GET /api/me/friends`
+  - Bearer required
+  - список принятых друзей
+  - в каждом элементе есть `user` и `chatId` (если чат уже есть)
+- `GET /api/me/friends/requests`
+  - Bearer required
+  - входящие заявки (`PENDING`)
+- `GET /api/me/friends/outgoing`
+  - Bearer required
+  - исходящие заявки (`PENDING`)
+- `POST /api/me/friends`
+  - Bearer required
+  - отправить заявку в друзья
+  - body: `{ "userId": "..." }`
+  - если у адресата уже есть исходящая заявка к вам — она принимается сразу и создаётся чат
+- `POST /api/me/friends/:friendshipId/accept`
+  - Bearer required
+  - принять входящую заявку и создать/получить direct-чат
+- `POST /api/me/friends/:friendshipId/reject`
+  - Bearer required
+  - отклонить входящую заявку
+- `DELETE /api/me/friends/:userId`
+  - Bearer required
+  - удалить дружбу или отменить заявку; direct-чат и история сообщений сохраняются
+
 Логика:
 - чаты сейчас только direct, один на один
 - один и тот же набор двух пользователей всегда получает один и тот же чат
@@ -524,8 +571,10 @@ Server → client:
     - `cityId`
     - `city`
     - `age`
+    - `tier`
+    - `q` / `name` — поиск по названию клуба (`contains`, без регистра)
   - используется для главного экрана будущих приложений
-  - фильтрует клубы/залы по городу, виду спорта и возрасту
+  - фильтрует клубы/залы по городу, виду спорта, возрасту и названию
 - `GET /api/clubs/:id`
   - подробная информация по клубу/залу
   - возвращает адрес, контакты, фото, тренеров, trainer cards, расписание, ссылку на Яндекс.Карты

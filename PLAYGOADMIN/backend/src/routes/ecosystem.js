@@ -242,6 +242,7 @@ router.get('/clubs', async (req, res, next) => {
     const age = toNullableInt(req.query.age)
     const sportCode = String(req.query.sportCode || '').trim().toUpperCase()
     const city = String(req.query.city || '').trim()
+    const nameQuery = String(req.query.q || req.query.name || '').trim()
     const clubs = await prisma.sportClub.findMany({
       where: {
         sportId: req.query.sportId || undefined,
@@ -249,6 +250,7 @@ router.get('/clubs', async (req, res, next) => {
         cityId: req.query.cityId || undefined,
         tier: normalizeClubTier(req.query.tier, true) || undefined,
         city: city ? { name: { equals: city, mode: 'insensitive' } } : undefined,
+        name: nameQuery ? { contains: nameQuery, mode: 'insensitive' } : undefined,
         AND:
           age == null
             ? undefined

@@ -187,6 +187,12 @@ enum ChatMessageType {
   TEXT
 }
 
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model City {
   id          String       @id @default(uuid())
   name        String       @unique
@@ -273,6 +279,8 @@ model User {
   directChatsAsUserA      DirectChat[]             @relation("DirectChatUserA")
   directChatsAsUserB      DirectChat[]             @relation("DirectChatUserB")
   sentChatMessages        ChatMessage[]            @relation("ChatMessageSender")
+  friendshipsRequested    Friendship[]             @relation("FriendshipRequester")
+  friendshipsReceived     Friendship[]             @relation("FriendshipAddressee")
   wellnessStoryViews      WellnessStoryView[]
   workoutProgramViews     WorkoutProgramView[]
   workoutSessions         WorkoutSession[]
@@ -992,6 +1000,23 @@ model ReferralRedemption {
   createdAt      DateTime @default(now())
 
   @@index([referrerUserId])
+}
+
+model Friendship {
+  id          String           @id @default(uuid())
+  requesterId String
+  requester   User             @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User             @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      FriendshipStatus @default(PENDING)
+  respondedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+  @@index([status, updatedAt])
 }
 
 model DirectChat {

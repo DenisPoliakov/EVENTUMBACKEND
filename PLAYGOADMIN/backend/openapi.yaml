@@ -2976,8 +2976,13 @@
         summary: Клубы с tier, расписанием и активными тарифами
         parameters:
           - { name: sportId, in: query, schema: { type: string } }
+          - { name: sportCode, in: query, schema: { type: string } }
           - { name: cityId, in: query, schema: { type: string } }
+          - { name: city, in: query, schema: { type: string } }
+          - { name: age, in: query, schema: { type: integer } }
           - { name: tier, in: query, schema: { type: string, enum: [BRONZE, SILVER, GOLD] } }
+          - { name: q, in: query, schema: { type: string }, description: Поиск по названию клуба }
+          - { name: name, in: query, schema: { type: string }, description: Алиас для q }
         responses:
           '200':
             description: Клубы
@@ -2986,6 +2991,131 @@
                 schema:
                   type: array
                   items: { $ref: '#/components/schemas/SportClub' }
+
+    /api/users/search:
+      get:
+        tags: [Auth]
+        summary: Поиск пользователей по username
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: username, in: query, schema: { type: string }, description: Предпочтительный query-параметр }
+          - { name: q, in: query, schema: { type: string }, description: Алиас для username }
+          - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        responses:
+          '200':
+            description: Найденные пользователи с relation/chatId
+          '400':
+            description: Не указан username/q
+          '401':
+            description: Требуется Bearer token
+
+    /api/me/friends:
+      get:
+        tags: [Auth]
+        summary: Список друзей
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: limit, in: query, schema: { type: integer } }
+        responses:
+          '200':
+            description: Принятые друзья с chatId
+          '401':
+            description: Требуется Bearer token
+      post:
+        tags: [Auth]
+        summary: Отправить заявку в друзья
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [userId]
+                properties:
+                  userId: { type: string }
+        responses:
+          '201':
+            description: Заявка создана или взаимно принята
+          '400':
+            description: Некорректный userId
+          '401':
+            description: Требуется Bearer token
+          '404':
+            description: Пользователь не найден
+          '409':
+            description: Уже друзья или заявка уже отправлена
+
+    /api/me/friends/requests:
+      get:
+        tags: [Auth]
+        summary: Входящие заявки в друзья
+        security: [{ bearerAuth: [] }]
+        responses:
+          '200':
+            description: Pending incoming
+          '401':
+            description: Требуется Bearer token
+
+    /api/me/friends/outgoing:
+      get:
+        tags: [Auth]
+        summary: Исходящие заявки в друзья
+        security: [{ bearerAuth: [] }]
+        responses:
+          '200':
+            description: Pending outgoing
+          '401':
+            description: Требуется Bearer token
+
+    /api/me/friends/{friendshipId}/accept:
+      post:
+        tags: [Auth]
+        summary: Принять заявку и создать direct-чат
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: friendshipId, in: path, required: true, schema: { type: string } }
+        responses:
+          '200':
+            description: Дружба принята
+          '401':
+            description: Требуется Bearer token
+          '403':
+            description: Не адресат заявки
+          '404':
+            description: Заявка не найдена
+
+    /api/me/friends/{friendshipId}/reject:
+      post:
+        tags: [Auth]
+        summary: Отклонить заявку в друзья
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: friendshipId, in: path, required: true, schema: { type: string } }
+        responses:
+          '200':
+            description: Заявка отклонена
+          '401':
+            description: Требуется Bearer token
+          '403':
+            description: Не адресат заявки
+          '404':
+            description: Заявка не найдена
+
+    /api/me/friends/{userId}:
+      delete:
+        tags: [Auth]
+        summary: Удалить дружбу или отменить заявку
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: userId, in: path, required: true, schema: { type: string } }
+        responses:
+          '204':
+            description: Удалено
+          '401':
+            description: Требуется Bearer token
+          '404':
+            description: Дружба не найдена
 
     /api/clubs/{id}:
       get:

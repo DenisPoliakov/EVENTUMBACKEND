@@ -4,10 +4,10 @@ import { requireAuth } from '../middleware/requireAuth.js'
 import {
   buildChatLastReadPatch,
   createChatTextMessage,
+  createOrGetDirectChat,
   getDirectChatByIdForUser,
   getDirectChatInclude,
   messageInclude,
-  normalizeDirectPair,
   serializeChatMessage,
   serializeDirectChat,
 } from '../lib/chats.js'
@@ -42,31 +42,6 @@ const ensureTargetUser = async (targetUserId, currentUserId) => {
   }
 
   return target
-}
-
-const createOrGetDirectChat = async (currentUserId, targetUserId) => {
-  const [userAId, userBId] = normalizeDirectPair(currentUserId, targetUserId)
-  const now = new Date()
-
-  const chat = await prisma.directChat.upsert({
-    where: {
-      userAId_userBId: {
-        userAId,
-        userBId,
-      },
-    },
-    update: {
-      ...(userAId === currentUserId ? { userALastReadAt: now } : { userBLastReadAt: now }),
-    },
-    create: {
-      userAId,
-      userBId,
-      ...(userAId === currentUserId ? { userALastReadAt: now } : { userBLastReadAt: now }),
-    },
-    include: getDirectChatInclude(),
-  })
-
-  return chat
 }
 
 router.get('/me/chats', requireAuth, async (req, res, next) => {

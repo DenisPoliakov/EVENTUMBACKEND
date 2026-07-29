@@ -181,3 +181,35 @@ export const createChatTextMessage = async (chat, senderUserId, text) => {
 }
 
 export const getDirectChatInclude = () => directChatInclude
+
+export const createOrGetDirectChat = async (currentUserId, targetUserId) => {
+  const [userAId, userBId] = normalizeDirectPair(currentUserId, targetUserId)
+  const now = new Date()
+
+  return prisma.directChat.upsert({
+    where: {
+      userAId_userBId: {
+        userAId,
+        userBId,
+      },
+    },
+    update: {
+      ...(userAId === currentUserId ? { userALastReadAt: now } : { userBLastReadAt: now }),
+    },
+    create: {
+      userAId,
+      userBId,
+      ...(userAId === currentUserId ? { userALastReadAt: now } : { userBLastReadAt: now }),
+    },
+    include: directChatInclude,
+  })
+}
+
+export const findDirectChatIdForPair = async (leftUserId, rightUserId) => {
+  const [userAId, userBId] = normalizeDirectPair(leftUserId, rightUserId)
+  const chat = await prisma.directChat.findUnique({
+    where: { userAId_userBId: { userAId, userBId } },
+    select: { id: true },
+  })
+  return chat?.id || null
+}
