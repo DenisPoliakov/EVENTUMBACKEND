@@ -80,7 +80,10 @@ export const deleteUserAccount = async (userId) => {
     await tx.teamMember.deleteMany({ where: { userId } })
     await tx.coachProfile.deleteMany({ where: { userId } })
     await tx.playerCard.deleteMany({ where: { userId } })
+    await tx.payment.deleteMany({ where: { order: { userId } } })
+    await tx.order.deleteMany({ where: { userId } })
     await tx.userSubscription.deleteMany({ where: { userId } })
+    await tx.appPremiumSubscription.deleteMany({ where: { userId } })
     await tx.user.delete({ where: { id: userId } })
 
     return {

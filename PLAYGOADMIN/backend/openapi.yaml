@@ -20,6 +20,12 @@
       description: Карточки футболистов
     - name: Teams
       description: Команды пользователя (JWT)
+    - name: Wellness
+      description: Wellness-истории и аналитика просмотров
+    - name: Workouts
+      description: Программы тренировок, шаги и аналитика просмотров
+    - name: Ecosystem
+      description: Персональная сводка, уведомления и push-регистрация
     - name: Admin
       description: CRUD для админки (Basic Auth)
 
@@ -84,12 +90,25 @@
 
       AuthResponse:
         type: object
+        required: [accessToken, refreshToken, expiresIn, user]
         properties:
           accessToken:
             type: string
             description: JWT
           user:
             $ref: '#/components/schemas/UserPublic'
+          refreshToken:
+            type: string
+            description: Одноразовый opaque refresh token
+          expiresIn:
+            type: integer
+            description: Срок access token в секундах
+
+      RefreshTokenRequest:
+        type: object
+        required: [refreshToken]
+        properties:
+          refreshToken: { type: string }
 
       RegisterRequest:
         type: object
@@ -438,6 +457,468 @@
           autoApproved: { type: boolean }
           teamId: { type: string }
 
+      News:
+        type: object
+        required:
+          - id
+          - title
+          - body
+          - type
+          - publishedAt
+          - viewCount
+          - uniqueViewerCount
+        properties:
+          id: { type: string, format: uuid }
+          title: { type: string }
+          body: { type: string }
+          imageUrl: { type: string, nullable: true }
+          type:
+            type: string
+            enum: [news, sponsored, STADIUM_CREATED, MATCH_CREATED]
+          clubId: { type: string, nullable: true }
+          stadiumId: { type: string, nullable: true }
+          matchId: { type: string, nullable: true }
+          publishedAt: { type: string, format: date-time }
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+          viewCount: { type: integer, minimum: 0 }
+          uniqueViewerCount: { type: integer, minimum: 0 }
+          isFavoriteClubNews: { type: boolean }
+
+      NewsWrite:
+        type: object
+        required: [title, body, type]
+        properties:
+          title: { type: string, maxLength: 300 }
+          body: { type: string, maxLength: 20000 }
+          imageUrl: { type: string, nullable: true, maxLength: 2000 }
+          type: { type: string, enum: [news, sponsored] }
+          clubId: { type: string, nullable: true }
+          publishedAt: { type: string, format: date-time }
+
+      NewsViewResult:
+        type: object
+        required: [newsId, viewCount, uniqueViewerCount, isFirstViewByUser]
+        properties:
+          newsId: { type: string, format: uuid }
+          viewCount: { type: integer, minimum: 1 }
+          uniqueViewerCount: { type: integer, minimum: 1 }
+          isFirstViewByUser: { type: boolean }
+
+      WellnessStory:
+        type: object
+        required:
+          - id
+          - title
+          - body
+          - category
+          - readMinutes
+          - sortOrder
+          - locale
+          - publishedAt
+          - uniqueViewerCount
+          - viewedByMe
+        properties:
+          id: { type: string, format: uuid }
+          slug:
+            type: string
+            nullable: true
+            pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+          title: { type: string }
+          body: { type: string }
+          category:
+            type: string
+            enum: [nutrition, warmup, routine, workouts, balance]
+          coverImageUrl:
+            type: string
+            nullable: true
+            example: /uploads/wellness-stories/cover.webp
+          readMinutes: { type: integer, minimum: 1, maximum: 120 }
+          sortOrder: { type: integer }
+          locale: { type: string, enum: [ru] }
+          publishedAt: { type: string, format: date-time }
+          uniqueViewerCount: { type: integer, minimum: 0 }
+          viewedByMe: { type: boolean }
+
+      AdminWellnessStory:
+        allOf:
+          - $ref: '#/components/schemas/WellnessStory'
+          - type: object
+            required: [isActive, createdAt, updatedAt]
+            properties:
+              isActive: { type: boolean }
+              deletedAt:
+                type: string
+                format: date-time
+                nullable: true
+              createdAt: { type: string, format: date-time }
+              updatedAt: { type: string, format: date-time }
+
+      WellnessStoryWrite:
+        type: object
+        required: [title, body, category, readMinutes, sortOrder, isActive]
+        properties:
+          slug:
+            type: string
+            nullable: true
+            pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+            maxLength: 120
+          title: { type: string }
+          body: { type: string }
+          category:
+            type: string
+            enum: [nutrition, warmup, routine, workouts, balance]
+          coverImageUrl: { type: string, nullable: true }
+          readMinutes: { type: integer, minimum: 1, maximum: 120 }
+          sortOrder: { type: integer, minimum: -10000, maximum: 10000 }
+          locale: { type: string, enum: [ru], default: ru }
+          publishedAt: { type: string, format: date-time }
+          isActive: { type: boolean }
+
+      WellnessStoryViewResult:
+        type: object
+        required:
+          - storyId
+          - uniqueViewerCount
+          - isFirstViewByUser
+        properties:
+          storyId: { type: string, format: uuid }
+          uniqueViewerCount: { type: integer, minimum: 0 }
+          isFirstViewByUser: { type: boolean }
+
+      WellnessStoryImport:
+        type: object
+        required: [stories]
+        properties:
+          stories:
+            type: array
+            minItems: 1
+            maxItems: 500
+            items:
+              allOf:
+                - $ref: '#/components/schemas/WellnessStoryWrite'
+                - type: object
+                  required: [slug]
+
+      WellnessStoryImportResult:
+        type: object
+        required: [created, updated, stories]
+        properties:
+          created: { type: integer, minimum: 0 }
+          updated: { type: integer, minimum: 0 }
+          stories:
+            type: array
+            items:
+              $ref: '#/components/schemas/AdminWellnessStory'
+
+      WorkoutStep:
+        type: object
+        required: [id, programId, order, phase, title, durationSeconds]
+        properties:
+          id: { type: string, format: uuid }
+          programId:
+            type: string
+            pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+          order: { type: integer, minimum: 1 }
+          phase:
+            type: string
+            enum: [warmup, work, rest, cooldown]
+          title: { type: string }
+          description: { type: string, nullable: true }
+          durationSeconds: { type: integer, minimum: 1, maximum: 86400 }
+          illustrationUrl:
+            type: string
+            nullable: true
+            example: /uploads/workouts/stable-slug/step.webp
+          poseIndex: { type: integer, minimum: 0, maximum: 5, nullable: true }
+
+      WorkoutProgram:
+        type: object
+        required:
+          - id
+          - title
+          - description
+          - sortOrder
+          - locale
+          - stepCount
+          - totalDurationSeconds
+          - uniqueViewerCount
+          - viewedByMe
+        properties:
+          id:
+            type: string
+            pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+          title: { type: string }
+          subtitle: { type: string, nullable: true }
+          description: { type: string }
+          guide: { type: string, nullable: true }
+          iconKey: { type: string, nullable: true }
+          gradientStart:
+            type: string
+            nullable: true
+            pattern: '^#[0-9A-Fa-f]{6}$'
+          gradientEnd:
+            type: string
+            nullable: true
+            pattern: '^#[0-9A-Fa-f]{6}$'
+          estimatedMinutes: { type: integer, minimum: 1, nullable: true }
+          sortOrder: { type: integer }
+          locale: { type: string, enum: [ru] }
+          stepCount: { type: integer, minimum: 0 }
+          totalDurationSeconds: { type: integer, minimum: 0 }
+          uniqueViewerCount: { type: integer, minimum: 0 }
+          viewedByMe: { type: boolean }
+
+      AdminWorkoutProgram:
+        allOf:
+          - $ref: '#/components/schemas/WorkoutProgram'
+          - type: object
+            required: [isActive, createdAt, updatedAt]
+            properties:
+              isActive: { type: boolean }
+              createdAt: { type: string, format: date-time }
+              updatedAt: { type: string, format: date-time }
+              steps:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkoutStep'
+
+      WorkoutProgramWrite:
+        type: object
+        properties:
+          id:
+            type: string
+            maxLength: 120
+            pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+          title: { type: string, maxLength: 200 }
+          subtitle: { type: string, nullable: true, maxLength: 300 }
+          description: { type: string, maxLength: 2000 }
+          guide: { type: string, nullable: true, maxLength: 20000 }
+          iconKey: { type: string, nullable: true, maxLength: 200 }
+          gradientStart: { type: string, nullable: true, pattern: '^#[0-9A-Fa-f]{6}$' }
+          gradientEnd: { type: string, nullable: true, pattern: '^#[0-9A-Fa-f]{6}$' }
+          estimatedMinutes: { type: integer, minimum: 1, maximum: 1440, nullable: true }
+          sortOrder: { type: integer, minimum: -10000, maximum: 10000 }
+          isActive: { type: boolean }
+          locale: { type: string, enum: [ru], default: ru }
+
+      WorkoutStepWrite:
+        type: object
+        properties:
+          order: { type: integer, minimum: 1, maximum: 10000 }
+          phase:
+            type: string
+            enum: [warmup, work, rest, cooldown]
+          title: { type: string, maxLength: 200 }
+          description: { type: string, nullable: true, maxLength: 2000 }
+          durationSeconds: { type: integer, minimum: 1, maximum: 86400 }
+          illustrationUrl: { type: string, nullable: true }
+          poseIndex: { type: integer, minimum: 0, maximum: 5, nullable: true }
+
+      WorkoutProgramViewResult:
+        type: object
+        required: [programId, uniqueViewerCount, isFirstViewByUser]
+        properties:
+          programId: { type: string }
+          uniqueViewerCount: { type: integer, minimum: 0 }
+          isFirstViewByUser: { type: boolean }
+
+      WorkoutSession:
+        type: object
+        required:
+          - id
+          - programId
+          - finishedAt
+          - durationSeconds
+          - source
+          - createdAt
+          - updatedAt
+        properties:
+          id: { type: string, format: uuid }
+          programId: { type: string }
+          startedAt: { type: string, format: date-time, nullable: true }
+          finishedAt: { type: string, format: date-time }
+          durationSeconds: { type: integer, minimum: 1, maximum: 86400 }
+          source: { type: string, enum: [timer, manual, imported] }
+          customPlan: { type: object, nullable: true, additionalProperties: true }
+          clientKey: { type: string, nullable: true, maxLength: 200 }
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+
+      WorkoutSessionWrite:
+        type: object
+        required: [programId, finishedAt, durationSeconds, source]
+        properties:
+          programId: { type: string, maxLength: 120 }
+          startedAt: { type: string, format: date-time, nullable: true }
+          finishedAt: { type: string, format: date-time }
+          durationSeconds: { type: integer, minimum: 1, maximum: 86400 }
+          source: { type: string, enum: [timer, manual, imported] }
+          customPlan: { type: object, nullable: true, additionalProperties: true }
+          clientKey: { type: string, nullable: true, maxLength: 200 }
+
+      ClubSchedule:
+        type: object
+        required: [id, startTime, endTime, priceCents]
+        properties:
+          id: { type: string, format: uuid }
+          title: { type: string }
+          dayOfWeek: { type: integer, minimum: 1, maximum: 7, nullable: true }
+          startTime: { type: string, example: '18:00' }
+          endTime: { type: string, example: '19:30' }
+          coachName: { type: string }
+          coachProfileId: { type: string }
+          coachId: { type: string, description: Alias for coachProfileId }
+          priceCents: { type: integer, minimum: 0 }
+
+      MembershipPlan:
+        type: object
+        required: [id, sportId, title, priceCents, currency, durationDays, isActive]
+        properties:
+          id: { type: string, format: uuid }
+          sportId: { type: string, format: uuid }
+          clubId: { type: string, format: uuid, nullable: true }
+          tier: { type: string, enum: [BRONZE, SILVER, GOLD], nullable: true }
+          title: { type: string }
+          description: { type: string }
+          priceCents: { type: integer, minimum: 0 }
+          currency: { type: string, example: RUB }
+          durationDays: { type: integer, minimum: 1 }
+          isActive: { type: boolean }
+
+      SportClub:
+        type: object
+        required: [id, sportId, name, address, tier, schedules, passes]
+        properties:
+          id: { type: string, format: uuid }
+          sportId: { type: string, format: uuid }
+          name: { type: string }
+          address: { type: string }
+          tier: { type: string, enum: [BRONZE, SILVER, GOLD] }
+          imageUrl: { type: string, example: /uploads/clubs/cover.webp }
+          logoUrl: { type: string, example: /uploads/clubs/logo.webp }
+          galleryUrls:
+            type: array
+            items: { type: string }
+          imageUrls:
+            type: array
+            description: Alias for galleryUrls
+            items: { type: string }
+          schedules:
+            type: array
+            items: { $ref: '#/components/schemas/ClubSchedule' }
+          passes:
+            type: array
+            description: Active membership plans only
+            items: { $ref: '#/components/schemas/MembershipPlan' }
+
+      TrainingBookingWrite:
+        type: object
+        required: [scheduledAt]
+        properties:
+          scheduleEntryId: { type: string, format: uuid }
+          scheduleId: { type: string, format: uuid, description: Alias for scheduleEntryId }
+          clubId: { type: string, format: uuid }
+          coachProfileId: { type: string, format: uuid }
+          coachId: { type: string, description: Coach profile or coach user ID }
+          scheduledAt: { type: string, format: date-time }
+          scheduleTitle: { type: string, description: Ignored when the schedule has a title }
+          note: { type: string }
+          priceCents:
+            type: integer
+            description: Optional compatibility field; rejected if it differs from the server schedule price
+
+      TrainingBooking:
+        type: object
+        required:
+          - id
+          - userId
+          - clubId
+          - scheduledAt
+          - scheduleTitle
+          - priceCents
+          - platformFeeCents
+          - currency
+          - status
+        properties:
+          id: { type: string, format: uuid }
+          userId: { type: string, format: uuid }
+          clubId: { type: string, format: uuid }
+          clubName: { type: string }
+          scheduleEntryId: { type: string }
+          scheduleId: { type: string, description: Alias for scheduleEntryId }
+          coachProfileId: { type: string }
+          coachId: { type: string, description: Alias for coachProfileId }
+          scheduledAt: { type: string, format: date-time }
+          scheduleTitle: { type: string }
+          note: { type: string }
+          priceCents: { type: integer, minimum: 0 }
+          platformFeeCents: { type: integer, minimum: 0, description: 15% of priceCents }
+          currency: { type: string, example: RUB }
+          status:
+            type: string
+            enum: [PENDING, CONFIRMED, COMPLETED, CANCELLED]
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+
+      Payment:
+        type: object
+        properties:
+          id: { type: string, format: uuid }
+          orderId: { type: string, format: uuid }
+          provider: { type: string, enum: [YOOKASSA] }
+          externalId: { type: string }
+          status: { type: string, enum: [PENDING, SUCCEEDED, CANCELLED, FAILED] }
+          amountCents: { type: integer }
+          currency: { type: string }
+          confirmationUrl: { type: string }
+
+      Order:
+        type: object
+        required: [id, userId, type, status, amountCents, currency, durationDays]
+        properties:
+          id: { type: string, format: uuid }
+          userId: { type: string, format: uuid }
+          planId: { type: string, format: uuid, nullable: true }
+          passId: { type: string, format: uuid, description: Alias for planId }
+          premiumPlanId: { type: string, format: uuid }
+          clubId: { type: string, format: uuid }
+          type: { type: string, enum: [MEMBERSHIP, PREMIUM] }
+          status: { type: string, enum: [PENDING, PAYMENT_CREATED, PAID, CANCELLED, FAILED] }
+          amountCents: { type: integer }
+          currency: { type: string }
+          durationDays: { type: integer }
+          confirmationUrl: { type: string }
+          payment:
+            allOf:
+              - $ref: '#/components/schemas/Payment'
+            nullable: true
+
+      PushToken:
+        type: object
+        required: [id, platform, lastSeenAt]
+        properties:
+          id: { type: string, format: uuid }
+          platform: { type: string, enum: [IOS, ANDROID, WEB] }
+          deviceId: { type: string }
+          deviceName: { type: string }
+          appVersion: { type: string }
+          locale: { type: string }
+          lastSeenAt: { type: string, format: date-time }
+          createdAt: { type: string, format: date-time }
+          updatedAt: { type: string, format: date-time }
+
+      PushTokenWrite:
+        type: object
+        required: [token, platform]
+        properties:
+          token: { type: string, minLength: 20, maxLength: 4096 }
+          platform: { type: string, enum: [IOS, ANDROID, WEB] }
+          deviceId: { type: string, maxLength: 255 }
+          deviceName: { type: string, maxLength: 255 }
+          appVersion: { type: string, maxLength: 100 }
+          locale: { type: string, maxLength: 35 }
+
       OkTrue:
         type: object
         properties:
@@ -455,6 +936,131 @@
               application/json:
                 schema:
                   $ref: '#/components/schemas/HealthResponse'
+
+    /api/news:
+      get:
+        tags: [Public]
+        summary: Публичная лента новостей
+        parameters:
+          - name: clubId
+            in: query
+            schema: { type: string }
+          - name: type
+            in: query
+            schema:
+              type: string
+              enum: [news, sponsored, STADIUM_CREATED, MATCH_CREATED]
+          - name: limit
+            in: query
+            schema: { type: integer, minimum: 1, maximum: 100, default: 40 }
+        responses:
+          '200':
+            description: Новости с точной аналитикой просмотров
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/News'
+
+    /api/me/news/{id}/view:
+      post:
+        tags: [Public]
+        summary: Зафиксировать просмотр новости
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            description: Каждый вызов увеличивает viewCount; первый для пользователя увеличивает uniqueViewerCount
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/NewsViewResult'
+          '401':
+            description: Требуется Bearer-токен
+          '404':
+            description: Новость не найдена
+
+    /api/admin/news:
+      get:
+        tags: [Admin]
+        summary: Новости CMS с аналитикой
+        security: [{ basicAuth: [] }]
+        responses:
+          '200':
+            description: Новости
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/News'
+      post:
+        tags: [Admin]
+        summary: Создать обычную или спонсорскую новость
+        security: [{ basicAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsWrite'
+        responses:
+          '201':
+            description: Новость создана
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/News'
+
+    /api/admin/news/{id}:
+      put:
+        tags: [Admin]
+        summary: Обновить новость
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsWrite'
+        responses:
+          '200':
+            description: Новость обновлена
+      delete:
+        tags: [Admin]
+        summary: Удалить новость и её аналитику
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204':
+            description: Новость удалена
+
+    /api/admin/news/{id}/image:
+      post:
+        tags: [Admin]
+        summary: Безопасно загрузить изображение новости
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file]
+                properties:
+                  file: { type: string, format: binary }
+        responses:
+          '201':
+            description: Изображение сохранено и привязано
+          '400':
+            description: Неверный тип или размер больше 5 MB
 
     /api/stadiums:
       get:
@@ -769,6 +1375,36 @@
               application/json:
                 schema:
                   $ref: '#/components/schemas/Error'
+
+    /api/auth/refresh:
+      post:
+        tags: [Auth]
+        summary: Одноразово ротировать refresh token
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RefreshTokenRequest' }
+        responses:
+          '200':
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/AuthResponse' }
+          '401':
+            description: Токен недействителен, истёк, уже использован или пользователь недоступен
+
+    /api/auth/logout:
+      post:
+        tags: [Auth]
+        summary: Отозвать refresh token
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RefreshTokenRequest' }
+        responses:
+          '204':
+            description: Токен отозван или уже отсутствует
 
     /api/me:
       get:
@@ -1616,3 +2252,1291 @@
                   type: object
                   properties:
                     url: { type: string, example: /uploads/123.jpg }
+
+    /api/wellness-stories:
+      get:
+        tags: [Wellness]
+        summary: Активные русскоязычные Wellness-истории
+        description: |
+          Bearer-токен необязателен. При валидном токене поле `viewedByMe`
+          отражает просмотр текущим пользователем.
+        security:
+          - {}
+          - bearerAuth: []
+        parameters:
+          - name: locale
+            in: query
+            schema: { type: string, enum: [ru], default: ru }
+          - name: limit
+            in: query
+            schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        responses:
+          '200':
+            description: Лента историй
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [stories]
+                  properties:
+                    stories:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/WellnessStory'
+          '400':
+            description: Некорректный locale или limit
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '401':
+            description: Передан некорректный Bearer-токен
+
+    /api/wellness-stories/{identifier}:
+      get:
+        tags: [Wellness]
+        summary: Получить публичную Wellness-историю по UUID или slug
+        security:
+          - {}
+          - bearerAuth: []
+        parameters:
+          - name: identifier
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            description: История
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WellnessStory'
+          '401':
+            description: Передан некорректный Bearer-токен
+          '404':
+            description: История не найдена или недоступна
+
+    /api/me/wellness-stories/{id}/view:
+      post:
+        tags: [Wellness]
+        summary: Зафиксировать уникальный просмотр истории
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            description: Просмотр учтён; повторный запрос идемпотентен
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WellnessStoryViewResult'
+          '401':
+            description: Требуется Bearer-токен
+          '404':
+            description: История не найдена или недоступна
+
+    /api/admin/wellness-stories:
+      get:
+        tags: [Admin, Wellness]
+        summary: Список Wellness-историй для админки
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: includeDeleted
+            in: query
+            schema: { type: boolean, default: false }
+        responses:
+          '200':
+            description: Истории
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AdminWellnessStory'
+      post:
+        tags: [Admin, Wellness]
+        summary: Создать Wellness-историю
+        security: [{ basicAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WellnessStoryWrite'
+        responses:
+          '201':
+            description: История создана
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AdminWellnessStory'
+          '400':
+            description: Ошибка валидации
+
+    /api/admin/wellness-stories/import:
+      post:
+        tags: [Admin, Wellness]
+        summary: Транзакционно импортировать русские истории с upsert по slug
+        description: |
+          Принимает только явно переданный контент. Все элементы валидируются
+          до записи; при ошибке ни одна история не изменяется.
+        security: [{ basicAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WellnessStoryImport'
+        responses:
+          '200':
+            description: Результат импорта
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WellnessStoryImportResult'
+          '400':
+            description: Ошибка валидации
+
+    /api/admin/wellness-stories/{id}:
+      get:
+        tags: [Admin, Wellness]
+        summary: Получить Wellness-историю
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            description: История
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AdminWellnessStory'
+          '404':
+            description: История не найдена
+      put:
+        tags: [Admin, Wellness]
+        summary: Обновить Wellness-историю
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WellnessStoryWrite'
+        responses:
+          '200':
+            description: История обновлена
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AdminWellnessStory'
+          '400':
+            description: Ошибка валидации
+          '404':
+            description: История не найдена
+      delete:
+        tags: [Admin, Wellness]
+        summary: Мягко удалить Wellness-историю
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204':
+            description: История скрыта и помечена удалённой
+          '404':
+            description: История не найдена
+
+    /api/admin/wellness-stories/{id}/cover:
+      post:
+        tags: [Admin, Wellness]
+        summary: Загрузить обложку Wellness-истории
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file]
+                properties:
+                  file:
+                    type: string
+                    format: binary
+        responses:
+          '201':
+            description: Обложка сохранена
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    url: { type: string }
+                    story:
+                      $ref: '#/components/schemas/AdminWellnessStory'
+          '400':
+            description: Неверный тип или размер файла больше 5 MB
+          '404':
+            description: История не найдена
+
+    /api/workout-programs:
+      get:
+        tags: [Workouts]
+        summary: Активные русскоязычные программы тренировок
+        security:
+          - {}
+          - bearerAuth: []
+        parameters:
+          - name: locale
+            in: query
+            schema: { type: string, enum: [ru], default: ru }
+        responses:
+          '200':
+            description: Каталог программ
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [programs]
+                  properties:
+                    programs:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/WorkoutProgram'
+          '400':
+            description: Поддерживается только locale=ru
+          '401':
+            description: Передан некорректный Bearer-токен
+
+    /api/workout-programs/{id}:
+      get:
+        tags: [Workouts]
+        summary: Получить программу по стабильному slug
+        security:
+          - {}
+          - bearerAuth: []
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            description: Программа
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WorkoutProgram'
+          '401':
+            description: Передан некорректный Bearer-токен
+          '404':
+            description: Программа не найдена или скрыта
+
+    /api/workout-programs/{id}/steps:
+      get:
+        tags: [Workouts]
+        summary: Структурированные шаги программы
+        security:
+          - {}
+          - bearerAuth: []
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            description: Шаги и рассчитанная длительность
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [programId, stepCount, totalDurationSeconds, steps]
+                  properties:
+                    programId: { type: string }
+                    stepCount: { type: integer, minimum: 0 }
+                    totalDurationSeconds: { type: integer, minimum: 0 }
+                    steps:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/WorkoutStep'
+          '404':
+            description: Программа не найдена или скрыта
+
+    /api/me/workout-programs/{id}/view:
+      post:
+        tags: [Workouts]
+        summary: Идемпотентно зафиксировать уникальный просмотр программы
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            description: Просмотр учтён
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WorkoutProgramViewResult'
+          '401':
+            description: Требуется Bearer-токен
+          '404':
+            description: Программа не найдена или скрыта
+
+    /api/me/workout-sessions:
+      get:
+        tags: [Workouts]
+        summary: История тренировок текущего пользователя
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - name: from
+            in: query
+            schema: { type: string, format: date-time }
+          - name: to
+            in: query
+            schema: { type: string, format: date-time }
+          - name: limit
+            in: query
+            schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        responses:
+          '200':
+            description: Сессии по finishedAt в обратном порядке
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [sessions]
+                  properties:
+                    sessions:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/WorkoutSession'
+      post:
+        tags: [Workouts]
+        summary: Идемпотентно сохранить одну тренировку
+        description: Серверная запись побеждает при повторном clientKey или programId + finishedAt.
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutSessionWrite'
+        responses:
+          '201':
+            description: Сессия создана
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WorkoutSession'
+          '200':
+            description: Возвращена существующая серверная сессия
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WorkoutSession'
+
+    /api/me/workout-sessions/bulk:
+      post:
+        tags: [Workouts]
+        summary: Идемпотентно импортировать до 500 тренировок
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessions]
+                properties:
+                  sessions:
+                    type: array
+                    minItems: 1
+                    maxItems: 500
+                    items:
+                      $ref: '#/components/schemas/WorkoutSessionWrite'
+        responses:
+          '200':
+            description: Результат server-wins импорта
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [createdCount, existingCount, sessions]
+                  properties:
+                    createdCount: { type: integer, minimum: 0 }
+                    existingCount: { type: integer, minimum: 0 }
+                    sessions:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/WorkoutSession'
+
+    /api/admin/workout-programs:
+      get:
+        tags: [Admin, Workouts]
+        summary: Список программ с агрегатами
+        security: [{ basicAuth: [] }]
+        responses:
+          '200':
+            description: Программы
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AdminWorkoutProgram'
+      post:
+        tags: [Admin, Workouts]
+        summary: Создать программу со стабильным slug ID
+        security: [{ basicAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/WorkoutProgramWrite'
+                  - type: object
+                    required: [id, title, description]
+        responses:
+          '201':
+            description: Программа создана
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AdminWorkoutProgram'
+          '400':
+            description: Ошибка валидации
+          '409':
+            description: ID уже используется
+
+    /api/admin/workout-programs/{id}:
+      get:
+        tags: [Admin, Workouts]
+        summary: Получить программу с шагами
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            description: Программа
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AdminWorkoutProgram'
+          '404':
+            description: Программа не найдена
+      put:
+        tags: [Admin, Workouts]
+        summary: Частично обновить программу; ID неизменяем
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutProgramWrite'
+        responses:
+          '200':
+            description: Программа обновлена
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AdminWorkoutProgram'
+          '400':
+            description: Ошибка валидации или попытка сменить ID
+          '404':
+            description: Программа не найдена
+      delete:
+        tags: [Admin, Workouts]
+        summary: Удалить программу, шаги, просмотры и локальные иллюстрации
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '204':
+            description: Удалено
+          '404':
+            description: Программа не найдена
+
+    /api/admin/workout-programs/{id}/steps:
+      get:
+        tags: [Admin, Workouts]
+        summary: Список шагов программы
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        responses:
+          '200':
+            description: Шаги
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    steps:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/WorkoutStep'
+          '404':
+            description: Программа не найдена
+      post:
+        tags: [Admin, Workouts]
+        summary: Добавить структурированный шаг
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/WorkoutStepWrite'
+                  - type: object
+                    required: [phase, title, durationSeconds]
+        responses:
+          '201':
+            description: Шаг создан
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WorkoutStep'
+          '400':
+            description: Ошибка валидации
+          '409':
+            description: Порядок уже используется
+
+    /api/admin/workout-programs/{id}/steps/reorder:
+      put:
+        tags: [Admin, Workouts]
+        summary: Транзакционно заменить порядок всех шагов
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stepIds]
+                properties:
+                  stepIds:
+                    type: array
+                    uniqueItems: true
+                    items: { type: string, format: uuid }
+        responses:
+          '200':
+            description: Новый порядок
+          '400':
+            description: Неполный, лишний или дублирующий список шагов
+          '404':
+            description: Программа не найдена
+
+    /api/admin/workout-programs/{id}/steps/{stepId}:
+      get:
+        tags: [Admin, Workouts]
+        summary: Получить один шаг программы
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+          - name: stepId
+            in: path
+            required: true
+            schema: { type: string, format: uuid }
+        responses:
+          '200':
+            description: Шаг
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WorkoutStep'
+          '404':
+            description: Шаг не найден
+      put:
+        tags: [Admin, Workouts]
+        summary: Частично обновить шаг
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+          - name: stepId
+            in: path
+            required: true
+            schema: { type: string, format: uuid }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutStepWrite'
+        responses:
+          '200':
+            description: Шаг обновлён
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/WorkoutStep'
+          '404':
+            description: Шаг не найден
+      delete:
+        tags: [Admin, Workouts]
+        summary: Удалить шаг и его локальную иллюстрацию
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+          - name: stepId
+            in: path
+            required: true
+            schema: { type: string, format: uuid }
+        responses:
+          '204':
+            description: Удалено
+          '404':
+            description: Шаг не найден
+
+    /api/admin/workout-programs/{id}/steps/{stepId}/illustration:
+      post:
+        tags: [Admin, Workouts]
+        summary: Загрузить или заменить иллюстрацию шага
+        security: [{ basicAuth: [] }]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema: { type: string }
+          - name: stepId
+            in: path
+            required: true
+            schema: { type: string, format: uuid }
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file]
+                properties:
+                  file:
+                    type: string
+                    format: binary
+        responses:
+          '201':
+            description: Иллюстрация сохранена; предыдущий локальный файл удалён
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    url: { type: string }
+                    step:
+                      $ref: '#/components/schemas/WorkoutStep'
+          '400':
+            description: Неверный MIME или размер больше 5 MB
+          '404':
+            description: Шаг не найден
+
+    /api/clubs:
+      get:
+        tags: [Public]
+        summary: Клубы с tier, расписанием и активными тарифами
+        parameters:
+          - { name: sportId, in: query, schema: { type: string } }
+          - { name: cityId, in: query, schema: { type: string } }
+          - { name: tier, in: query, schema: { type: string, enum: [BRONZE, SILVER, GOLD] } }
+        responses:
+          '200':
+            description: Клубы
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items: { $ref: '#/components/schemas/SportClub' }
+
+    /api/clubs/{id}:
+      get:
+        tags: [Public]
+        summary: Карточка клуба
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200':
+            description: Клуб
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/SportClub' }
+          '404':
+            description: Клуб не найден
+
+    /api/me/bookings:
+      get:
+        tags: [Public]
+        summary: Бронирования текущего пользователя
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: clubId, in: query, schema: { type: string } }
+          - { name: status, in: query, schema: { type: string, enum: [PENDING, CONFIRMED, COMPLETED, CANCELLED] } }
+        responses:
+          '200':
+            description: Бронирования
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items: { $ref: '#/components/schemas/TrainingBooking' }
+          '401':
+            description: Требуется Bearer token
+      post:
+        tags: [Public]
+        summary: Забронировать занятие по серверной цене
+        description: Клиентская цена не используется. Комиссия платформы фиксируется как 15%.
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrainingBookingWrite' }
+        responses:
+          '201':
+            description: Бронирование создано
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/TrainingBooking' }
+          '400':
+            description: Расписание, клуб, тренер, дата или цена не прошли проверку
+          '401':
+            description: Требуется Bearer token
+          '403':
+            description: Пользователь заблокирован
+          '404':
+            description: Слот расписания не найден
+
+    /api/admin/bookings:
+      get:
+        tags: [Admin]
+        summary: Список бронирований
+        security: [{ basicAuth: [] }]
+        parameters:
+          - { name: clubId, in: query, schema: { type: string } }
+          - { name: userId, in: query, schema: { type: string } }
+          - { name: status, in: query, schema: { type: string, enum: [PENDING, CONFIRMED, COMPLETED, CANCELLED] } }
+        responses:
+          '200':
+            description: Бронирования
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items: { $ref: '#/components/schemas/TrainingBooking' }
+
+    /api/me/premium:
+      get:
+        tags: [Public]
+        security: [{ bearerAuth: [] }]
+        summary: Текущий Premium-статус и серверный тариф
+        responses:
+          '200':
+            description: Статус, expiry, цена, валюта и длительность
+      post:
+        tags: [Public]
+        security: [{ bearerAuth: [] }]
+        summary: Создать идемпотентный Premium-заказ через YooKassa
+        parameters:
+          - name: Idempotency-Key
+            in: header
+            required: true
+            schema: { type: string, maxLength: 200 }
+        responses:
+          '201':
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Order' }
+          '200': { description: Идемпотентный повтор }
+          '503': { description: YooKassa не настроена }
+
+    /api/me/referral:
+      get:
+        tags: [Public]
+        security: [{ bearerAuth: [] }]
+        summary: Реферальный код, число приглашённых и применённый код
+        responses:
+          '200': { description: Реферальный статус }
+
+    /api/me/referral/apply:
+      post:
+        tags: [Public]
+        security: [{ bearerAuth: [] }]
+        summary: Однократно применить чужой код без учёта регистра
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  referralCode: { type: string }
+                  code: { type: string, description: Alias for referralCode }
+        responses:
+          '201': { description: Код применён }
+          '400': { description: Пустой или собственный код }
+          '404': { description: Код не найден }
+          '409': { description: Код уже был применён }
+
+    /api/me/orders:
+      post:
+        tags: [Public]
+        summary: Создать идемпотентный заказ и получить URL подтверждения YooKassa
+        description: Цена, валюта и длительность всегда берутся из MembershipPlan. Абонемент создаётся только проверенным webhook.
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - name: Idempotency-Key
+            in: header
+            required: true
+            schema: { type: string, maxLength: 200 }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  planId: { type: string, format: uuid }
+                  passId: { type: string, format: uuid, description: Alias for planId }
+                  clubId: { type: string, format: uuid }
+                  type: { type: string, enum: [MEMBERSHIP, subscription, pass] }
+        responses:
+          '201':
+            description: Заказ и provider payment созданы
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/Order' }
+          '200':
+            description: Идемпотентный повтор
+          '503':
+            description: PENDING заказ сохранён; code=PAYMENTS_NOT_CONFIGURED
+
+    /api/subscriptions:
+      post:
+        tags: [Public]
+        deprecated: true
+        summary: Отключённый legacy endpoint прямой активации
+        responses:
+          '410':
+            description: Используйте POST /api/me/orders
+
+    /api/webhooks/yookassa:
+      post:
+        tags: [Public]
+        summary: Проверить платёж у YooKassa и идемпотентно активировать абонемент или Premium
+        responses:
+          '200': { description: Проверено и обработано }
+          '400': { description: Платёж не совпадает с заказом }
+          '503': { description: YooKassa не настроена }
+
+    /api/admin/orders:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        summary: Заказы и платежи
+        parameters:
+          - { name: status, in: query, schema: { type: string } }
+          - { name: paymentStatus, in: query, schema: { type: string } }
+          - { name: clubId, in: query, schema: { type: string } }
+          - { name: userId, in: query, schema: { type: string } }
+        responses:
+          '200':
+            description: Заказы
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items: { $ref: '#/components/schemas/Order' }
+
+    /api/admin/premium:
+      get:
+        tags: [Admin]
+        security: [{ basicAuth: [] }]
+        summary: Read-only список Premium-тарифов и оплаченных подписок
+        responses:
+          '200': { description: Тарифы и последние 500 подписок }
+
+    /api/admin/bookings/{id}/status:
+      patch:
+        tags: [Admin]
+        summary: Изменить статус бронирования
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [PENDING, CONFIRMED, COMPLETED, CANCELLED]
+        responses:
+          '200':
+            description: Бронирование обновлено
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/TrainingBooking' }
+          '404':
+            description: Бронирование не найдено
+
+    /api/me/push-tokens:
+      post:
+        tags: [Ecosystem]
+        summary: Идемпотентно зарегистрировать или обновить push-токен
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushTokenWrite' }
+        responses:
+          '200':
+            description: Токен зарегистрирован или обновлён
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    pushToken: { $ref: '#/components/schemas/PushToken' }
+          '400': { description: Неверный token, platform или metadata }
+          '401': { description: Требуется Bearer-токен }
+      delete:
+        tags: [Ecosystem]
+        summary: Удалить push-токен по значению
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token: { type: string }
+        responses:
+          '204': { description: Токен удалён или уже отсутствовал }
+          '400': { description: token обязателен }
+          '401': { description: Требуется Bearer-токен }
+
+    /api/me/push-tokens/{id}:
+      delete:
+        tags: [Ecosystem]
+        summary: Удалить свой push-токен по идентификатору
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204': { description: Токен удалён }
+          '401': { description: Требуется Bearer-токен }
+          '404': { description: Токен не найден }
+
+    /api/ecosystem:
+      get:
+        tags: [Ecosystem]
+        summary: Ограниченная персональная сводка экосистемы
+        security: [{ bearerAuth: [] }]
+        responses:
+          '200':
+            description: Избранные клубы, счётчики и актуальные highlights
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [favoriteClubs, counts, highlights]
+                  properties:
+                    favoriteClubs:
+                      type: array
+                      maxItems: 20
+                      items: { type: object }
+                    counts:
+                      type: object
+                      properties:
+                        favoriteClubs: { type: integer }
+                        unreadNotifications: { type: integer }
+                        unreadChats: { type: integer }
+                        activeSubscriptions: { type: integer }
+                        expiringSubscriptions: { type: integer }
+                    highlights:
+                      type: object
+                      properties:
+                        favoriteClubNews:
+                          type: array
+                          maxItems: 10
+                          items: { type: object }
+                        expiringSubscriptions:
+                          type: array
+                          maxItems: 10
+                          items: { type: object }
+          '401': { description: Требуется Bearer-токен }
+
+    /api/me/ai-matches:
+      get:
+        tags: [Public]
+        summary: История caller-supplied AI match результатов (сервер не генерирует рекомендации)
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        responses:
+          '200': { description: До 100 собственных записей истории }
+          '401': { description: Требуется Bearer-токен }
+      post:
+        tags: [Public]
+        summary: Сохранить request/result JSON, предоставленные вызывающей стороной
+        description: Этот endpoint только хранит историю и не запускает AI.
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requestJson, resultJson]
+                properties:
+                  requestJson: { description: JSON до 100 KB }
+                  resultJson: { description: JSON до 100 KB }
+        responses:
+          '201': { description: История сохранена; старые записи сверх 100 удалены }
+          '400': { description: Неверный или слишком большой JSON }
+
+    /api/me/ai-matches/{id}:
+      delete:
+        tags: [Public]
+        summary: Удалить собственную запись AI match history
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204': { description: Удалено }
+          '404': { description: Запись не найдена или принадлежит другому пользователю }
+
+    /api/me/support:
+      get:
+        tags: [Public]
+        summary: Собственные support tickets без внутренних admin notes
+        security: [{ bearerAuth: [] }]
+        responses:
+          '200': { description: До 100 тикетов с публичной перепиской }
+      post:
+        tags: [Public]
+        summary: Создать support ticket
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [subject, message]
+                properties:
+                  subject: { type: string, maxLength: 200 }
+                  message: { type: string, maxLength: 10000 }
+        responses:
+          '201': { description: Тикет создан }
+
+    /api/me/support/{id}/replies:
+      post:
+        tags: [Public]
+        summary: Ответить в собственный незакрытый тикет
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message: { type: string, maxLength: 10000 }
+        responses:
+          '201': { description: Ответ добавлен }
+          '409': { description: Тикет закрыт }
+
+    /api/admin/workout-analytics:
+      get:
+        tags: [Admin]
+        summary: Ограниченные агрегаты тренировочных сессий
+        security: [{ basicAuth: [] }]
+        parameters:
+          - { name: from, in: query, schema: { type: string, format: date-time } }
+          - { name: to, in: query, schema: { type: string, format: date-time } }
+          - { name: popularLimit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+        responses:
+          '200': { description: "Sessions, unique users, duration и popular programs" }
+          '400': { description: Неверный или превышающий 366 дней диапазон }
+
+    /api/admin/push-campaigns:
+      get:
+        tags: [Admin]
+        summary: Последние 250 durable push campaigns
+        security: [{ basicAuth: [] }]
+        responses:
+          '200': { description: Кампании и delivery counters }
+      post:
+        tags: [Admin]
+        summary: Создать draft ручной кампании
+        security: [{ basicAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [name, title, body, targetSegment]
+                properties:
+                  name: { type: string, maxLength: 200 }
+                  title: { type: string, maxLength: 200 }
+                  body: { type: string, maxLength: 1000 }
+                  imageUrl: { type: string, maxLength: 2000 }
+                  data: { type: object }
+                  targetSegment: { type: string, enum: [ALL_USERS, SELECTED_USERS, FAVORITE_CLUB] }
+                  selectedUserIds: { type: array, maxItems: 2000, items: { type: string } }
+                  favoriteClubId: { type: string }
+        responses:
+          '201': { description: Draft создан }
+
+    /api/admin/push-campaigns/{id}/preview:
+      get:
+        tags: [Admin]
+        summary: Preview получателей без отправки
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200': { description: "recipientCount, canSend и sample до 20 пользователей" }
+
+    /api/admin/push-campaigns/{id}/send:
+      post:
+        tags: [Admin]
+        summary: Идемпотентно создать in-app notifications и выполнить безопасную FCM-отправку
+        description: Без FCM credentials статус SKIPPED и pushSentCount=0; максимум 2000 получателей.
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '202': { description: Попытка завершена и durable counters сохранены }
+          '200': { description: Уже отправлено или параллельная попытка дедуплицирована }
+
+    /api/admin/push-campaigns/templates:
+      get:
+        tags: [Admin]
+        summary: Шаблоны ручных push-кампаний
+        security: [{ basicAuth: [] }]
+        responses:
+          '200': { description: До 250 шаблонов }
+      post:
+        tags: [Admin]
+        summary: Создать шаблон
+        security: [{ basicAuth: [] }]
+        responses:
+          '201': { description: Шаблон создан }
+
+    /api/admin/push-campaigns/templates/{id}:
+      put:
+        tags: [Admin]
+        summary: Обновить шаблон
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200': { description: Шаблон обновлён }
+      delete:
+        tags: [Admin]
+        summary: Удалить шаблон
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '204': { description: Шаблон удалён }
+
+    /api/admin/support:
+      get:
+        tags: [Admin]
+        summary: Очередь support tickets
+        security: [{ basicAuth: [] }]
+        parameters:
+          - { name: status, in: query, schema: { type: string, enum: [OPEN, IN_PROGRESS, WAITING_USER, RESOLVED, CLOSED] } }
+          - { name: priority, in: query, schema: { type: string, enum: [LOW, NORMAL, HIGH, URGENT] } }
+        responses:
+          '200': { description: До 250 тикетов }
+
+    /api/admin/support/{id}:
+      get:
+        tags: [Admin]
+        summary: Detail тикета, включая internal notes
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200': { description: Тикет и сообщения }
+      patch:
+        tags: [Admin]
+        summary: Изменить status и/или priority
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '200': { description: Тикет обновлён }
+
+    /api/admin/support/{id}/replies:
+      post:
+        tags: [Admin]
+        summary: Публичный ответ пользователю
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '201': { description: Ответ добавлен; статус WAITING_USER }
+
+    /api/admin/support/{id}/notes:
+      post:
+        tags: [Admin]
+        summary: Внутренняя заметка оператора
+        security: [{ basicAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/IdPath'
+        responses:
+          '201': { description: Заметка добавлена и не видна пользователю }

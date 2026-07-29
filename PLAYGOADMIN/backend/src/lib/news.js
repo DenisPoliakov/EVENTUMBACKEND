@@ -1,9 +1,97 @@
 import prisma from '../prisma.js'
+import { createNotificationWithPush } from './pushNotifications.js'
 
 export const newsIncludeShape = {
   club: { include: { city: true, sport: true } },
   stadium: { include: { city: true } },
   match: { include: { stadium: { include: { city: true } } } },
+  _count: {
+    select: {
+      views: true,
+      uniqueViews: true,
+    },
+  },
+}
+
+const cmsTypeToPrisma = new Map([
+  ['news', 'MANUAL'],
+  ['manual', 'MANUAL'],
+  ['sponsored', 'SPONSORED'],
+])
+
+export const normalizeNewsTypeFilter = (value) => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return undefined
+  const cmsType = cmsTypeToPrisma.get(raw.toLowerCase())
+  if (cmsType) return cmsType
+  const legacyType = raw.toUpperCase()
+  return ['STADIUM_CREATED', 'MATCH_CREATED'].includes(legacyType)
+    ? legacyType
+    : null
+}
+
+const serializeNewsType = (type) => {
+  if (type === 'MANUAL') return 'news'
+  if (type === 'SPONSORED') return 'sponsored'
+  return type
+}
+
+export const validateNewsPayload = (body, { partial = false } = {}) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'payload must be a JSON object' }
+  }
+
+  const data = {}
+  for (const [field, maxLength] of [
+    ['title', 300],
+    ['body', 20000],
+  ]) {
+    if (!partial || Object.hasOwn(body, field)) {
+      const value = String(body[field] ?? '').trim()
+      if (!value) return { error: `${field} is required` }
+      if (value.length > maxLength) {
+        return { error: `${field} must be at most ${maxLength} characters` }
+      }
+      data[field] = value
+    }
+  }
+
+  if (Object.hasOwn(body, 'imageUrl')) {
+    const imageUrl = String(body.imageUrl ?? '').trim()
+    if (imageUrl.length > 2000) {
+      return { error: 'imageUrl must be at most 2000 characters' }
+    }
+    data.imageUrl = imageUrl || null
+  }
+
+  if (!partial || Object.hasOwn(body, 'type')) {
+    const type = String(body.type ?? 'news').trim().toLowerCase()
+    const normalized = cmsTypeToPrisma.get(type)
+    if (!normalized) return { error: 'type must be news or sponsored' }
+    data.type = normalized
+  }
+
+  if (Object.hasOwn(body, 'clubId')) {
+    const clubId = String(body.clubId ?? '').trim()
+    if (clubId.length > 120) {
+      return { error: 'clubId must be at most 120 characters' }
+    }
+    data.clubId = clubId || null
+  }
+
+  if (Object.hasOwn(body, 'publishedAt')) {
+    if (body.publishedAt === null || body.publishedAt === '') {
+      data.publishedAt = new Date()
+    } else {
+      const publishedAt = new Date(body.publishedAt)
+      if (Number.isNaN(publishedAt.getTime())) {
+        return { error: 'publishedAt must be an ISO 8601 timestamp' }
+      }
+      data.publishedAt = publishedAt
+    }
+  }
+
+  return { data }
 }
 
 export async function createNews({
@@ -37,17 +125,21 @@ export async function createNews({
     })
 
     if (favorites.length) {
-      await prisma.userNotification.createMany({
-        data: favorites.map((favorite) => ({
-          userId: favorite.userId,
-          type: 'FAVORITE_CLUB_NEWS',
-          title: news.title,
-          body: news.body,
-          imageUrl: news.imageUrl || null,
-          clubId: news.clubId,
-          newsId: news.id,
-        })),
-      })
+      await Promise.all(
+        favorites.map((favorite) =>
+          createNotificationWithPush({
+            userId: favorite.userId,
+            type: 'FAVORITE_CLUB_NEWS',
+            title: news.title,
+            body: news.body,
+            imageUrl: news.imageUrl || null,
+            clubId: news.clubId,
+            newsId: news.id,
+            dedupeKey: `favorite-club-news:${news.id}:${favorite.userId}`,
+            data: { newsId: news.id, clubId: news.clubId },
+          }),
+        ),
+      )
     }
   }
 
@@ -75,13 +167,15 @@ export const serializeNews = (item, options = {}) => {
     title: item.title,
     body: item.body,
     imageUrl: item.imageUrl || '',
-    type: item.type,
+    type: serializeNewsType(item.type),
     clubId: item.clubId || '',
     stadiumId: item.stadiumId || '',
     matchId: item.matchId || '',
     publishedAt: item.publishedAt,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    viewCount: item._count?.views ?? 0,
+    uniqueViewerCount: item._count?.uniqueViews ?? 0,
     isFavoriteClubNews,
     club: item.club
       ? {
@@ -119,5 +213,29 @@ export const serializeNews = (item, options = {}) => {
             : null,
         }
       : null,
+  }
+}
+
+export const recordNewsView = async (newsId, userId) => {
+  const [, uniqueResult] = await prisma.$transaction([
+    prisma.newsView.create({
+      data: { newsId, userId },
+    }),
+    prisma.newsUniqueView.createMany({
+      data: [{ newsId, userId }],
+      skipDuplicates: true,
+    }),
+  ])
+
+  const [viewCount, uniqueViewerCount] = await Promise.all([
+    prisma.newsView.count({ where: { newsId } }),
+    prisma.newsUniqueView.count({ where: { newsId } }),
+  ])
+
+  return {
+    newsId,
+    viewCount,
+    uniqueViewerCount,
+    isFirstViewByUser: uniqueResult.count === 1,
   }
 }

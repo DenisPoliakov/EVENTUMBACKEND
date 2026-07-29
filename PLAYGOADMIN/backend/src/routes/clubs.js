@@ -3,6 +3,8 @@ import prisma from '../prisma.js'
 import {
   clubInclude,
   normalizeCoaches,
+  normalizeClubTier,
+  normalizeMediaUrl,
   normalizeStringList,
   normalizeSchedules,
   serializeClub,
@@ -43,8 +45,12 @@ const buildData = (body) => ({
   description: String(body.description || '').trim() || null,
   latitude: toNullableNumber(body.latitude),
   longitude: toNullableNumber(body.longitude),
-  imageUrl: String(body.imageUrl || '').trim() || null,
-  galleryUrls: normalizeStringList(body.galleryUrls),
+  tier: normalizeClubTier(body.tier),
+  imageUrl: normalizeMediaUrl(body.imageUrl || body.logoUrl) || null,
+  logoUrl: normalizeMediaUrl(body.logoUrl || body.imageUrl) || null,
+  galleryUrls: normalizeStringList(body.galleryUrls || body.imageUrls).map(
+    normalizeMediaUrl,
+  ),
   yandexMapsUrl: String(body.yandexMapsUrl || '').trim() || null,
   contactPhone: String(body.contactPhone || '').trim() || null,
   contactEmail: String(body.contactEmail || '').trim() || null,
@@ -56,6 +62,36 @@ const buildData = (body) => ({
   maxAge: toNullableInt(body.maxAge),
   coaches: normalizeCoaches(body.coaches),
 })
+
+const validateSchedules = (schedules) => {
+  for (const schedule of schedules) {
+    if (
+      schedule.priceCents == null ||
+      schedule.priceCents < 0 ||
+      (schedule.dayOfWeek != null &&
+        (schedule.dayOfWeek < 1 || schedule.dayOfWeek > 7))
+    ) {
+      return 'Each schedule requires a non-negative priceCents and dayOfWeek from 1 to 7'
+    }
+  }
+  return null
+}
+
+const validateScheduleCoaches = async (tx, clubId, schedules) => {
+  const coachIds = [
+    ...new Set(schedules.map((schedule) => schedule.coachProfileId).filter(Boolean)),
+  ]
+  if (!coachIds.length) return
+
+  const count = await tx.coachProfile.count({
+    where: { id: { in: coachIds }, clubId },
+  })
+  if (count !== coachIds.length) {
+    const error = new Error('Every schedule coachProfileId must belong to the club')
+    error.status = 400
+    throw error
+  }
+}
 
 router.get('/', async (req, res, next) => {
   try {
@@ -76,14 +112,27 @@ router.post('/', async (req, res, next) => {
     if (!data.sportId || !data.name || !data.address) {
       return res.status(400).json({ error: 'sportId, name and address are required' })
     }
+    if (!data.tier) return res.status(400).json({ error: 'tier is invalid' })
 
     const schedules = normalizeSchedules(req.body.schedules)
-    const club = await prisma.sportClub.create({
-      data: {
-        ...data,
-        schedules: schedules.length ? { create: schedules } : undefined,
-      },
-      include: clubInclude,
+    const scheduleError = validateSchedules(schedules)
+    if (scheduleError) return res.status(400).json({ error: scheduleError })
+
+    const club = await prisma.$transaction(async (tx) => {
+      const created = await tx.sportClub.create({ data })
+      await validateScheduleCoaches(tx, created.id, schedules)
+      if (schedules.length) {
+        await tx.clubSchedule.createMany({
+          data: schedules.map(({ id: _id, ...schedule }) => ({
+            ...schedule,
+            clubId: created.id,
+          })),
+        })
+      }
+      return tx.sportClub.findUnique({
+        where: { id: created.id },
+        include: clubInclude,
+      })
     })
     res.status(201).json(serializeClub(club))
   } catch (err) {
@@ -108,15 +157,57 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const data = buildData(req.body)
+    if (!data.tier) return res.status(400).json({ error: 'tier is invalid' })
     const schedules = normalizeSchedules(req.body.schedules)
+    const scheduleError = validateSchedules(schedules)
+    if (scheduleError) return res.status(400).json({ error: scheduleError })
+
     const club = await prisma.$transaction(async (tx) => {
-      await tx.clubSchedule.deleteMany({ where: { clubId: req.params.id } })
-      return tx.sportClub.update({
+      const existing = await tx.sportClub.findUnique({
         where: { id: req.params.id },
-        data: {
-          ...data,
-          schedules: schedules.length ? { create: schedules } : undefined,
+        select: { id: true },
+      })
+      if (!existing) {
+        const error = new Error('Club not found')
+        error.status = 404
+        throw error
+      }
+
+      await validateScheduleCoaches(tx, existing.id, schedules)
+      const incomingIds = schedules.map((schedule) => schedule.id).filter(Boolean)
+      if (incomingIds.length) {
+        const ownedCount = await tx.clubSchedule.count({
+          where: { clubId: existing.id, id: { in: incomingIds } },
+        })
+        if (ownedCount !== incomingIds.length) {
+          const error = new Error('Schedule entry does not belong to this club')
+          error.status = 400
+          throw error
+        }
+      }
+
+      await tx.sportClub.update({
+        where: { id: req.params.id },
+        data,
+      })
+      await tx.clubSchedule.deleteMany({
+        where: {
+          clubId: existing.id,
+          id: incomingIds.length ? { notIn: incomingIds } : undefined,
         },
+      })
+      for (const schedule of schedules) {
+        const { id, ...scheduleData } = schedule
+        if (id) {
+          await tx.clubSchedule.update({ where: { id }, data: scheduleData })
+        } else {
+          await tx.clubSchedule.create({
+            data: { ...scheduleData, clubId: existing.id },
+          })
+        }
+      }
+      return tx.sportClub.findUnique({
+        where: { id: existing.id },
         include: clubInclude,
       })
     })

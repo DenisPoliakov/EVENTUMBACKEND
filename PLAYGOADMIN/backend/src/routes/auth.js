@@ -5,9 +5,12 @@ import {
   generateUsername,
   hashPassword,
   normalizeIdentifier,
+  revokeRefreshToken,
+  rotateRefreshToken,
   splitName,
   verifyPassword,
 } from '../lib/auth.js'
+import { ensureReferralCode } from '../lib/referrals.js'
 import { deleteUserAccount } from '../lib/userDeletion.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 
@@ -102,7 +105,8 @@ router.post('/auth/register', async (req, res, next) => {
       include: { city: true, playerCard: true },
     })
 
-    return res.status(201).json(authResponse(user, city?.name || cityName))
+    await ensureReferralCode(user.id)
+    return res.status(201).json(await authResponse(user, city?.name || cityName))
   } catch (err) {
     next(err)
   }
@@ -130,7 +134,27 @@ router.post('/auth/login', async (req, res, next) => {
       return res.status(403).json(buildBlockDetails(user))
     }
 
-    return res.json(authResponse(user, user.city?.name || ''))
+    await ensureReferralCode(user.id)
+    return res.json(await authResponse(user, user.city?.name || ''))
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.post('/auth/refresh', async (req, res, next) => {
+  try {
+    const response = await rotateRefreshToken(String(req.body.refreshToken || ''))
+    if (!response) return res.status(401).json({ error: 'Invalid refresh token' })
+    return res.json(response)
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.post('/auth/logout', async (req, res, next) => {
+  try {
+    await revokeRefreshToken(String(req.body.refreshToken || ''))
+    return res.status(204).send()
   } catch (err) {
     next(err)
   }

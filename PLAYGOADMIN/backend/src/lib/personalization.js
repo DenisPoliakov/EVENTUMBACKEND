@@ -45,6 +45,7 @@ export const serializeUserNotification = (notification, options = {}) => {
     imageUrl: notification.imageUrl || '',
     clubId: notification.clubId || '',
     newsId: notification.newsId || '',
+    data: notification.data || {},
     isRead: Boolean(notification.readAt),
     readAt: notification.readAt,
     createdAt: notification.createdAt,

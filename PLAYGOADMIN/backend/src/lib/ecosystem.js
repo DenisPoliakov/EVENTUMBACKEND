@@ -41,16 +41,43 @@ export const normalizeStringList = (value) => {
   ]
 }
 
+export const normalizeMediaUrl = (value) => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('/uploads/')) return raw
+
+  try {
+    const parsed = new URL(raw)
+    if (parsed.pathname.startsWith('/uploads/')) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`
+    }
+  } catch {
+    return raw.startsWith('uploads/') ? `/${raw}` : raw
+  }
+
+  return raw
+}
+
+export const normalizeClubTier = (value, nullable = false) => {
+  const tier = String(value || '').trim().toUpperCase()
+  if (!tier && nullable) return null
+  return ['BRONZE', 'SILVER', 'GOLD'].includes(tier) ? tier : null
+}
+
 export const normalizeSchedules = (value) => {
   const raw = Array.isArray(value) ? value : []
   return raw
     .map((item) => ({
+      id: String(item.id || '').trim() || undefined,
       title: String(item.title || '').trim() || null,
       dayOfWeek: toNullableInt(item.dayOfWeek),
       startTime: String(item.startTime || '').trim(),
       endTime: String(item.endTime || '').trim(),
       ageGroup: String(item.ageGroup || '').trim() || null,
       coachName: String(item.coachName || '').trim() || null,
+      coachProfileId:
+        String(item.coachProfileId || item.coachId || '').trim() || null,
+      priceCents: toNullableInt(item.priceCents),
       note: String(item.note || '').trim() || null,
     }))
     .filter((item) => item.startTime && item.endTime)
@@ -78,7 +105,7 @@ export const serializeCoachProfile = (profile, options = {}) => {
     experienceYears: profile.experienceYears,
     description: profile.description || profile.achievements || '',
     achievements: profile.achievements || profile.description || '',
-    photoUrl: profile.photoUrl || '',
+    photoUrl: normalizeMediaUrl(profile.photoUrl),
     maxUrl: profile.maxUrl || '',
     telegramUrl: profile.telegramUrl || '',
     createdAt: profile.createdAt,
@@ -117,8 +144,11 @@ export const serializeClub = (club) => ({
   description: club.description || '',
   latitude: club.latitude,
   longitude: club.longitude,
-  imageUrl: club.imageUrl || '',
-  galleryUrls: club.galleryUrls || [],
+  tier: club.tier,
+  imageUrl: normalizeMediaUrl(club.imageUrl || club.logoUrl),
+  logoUrl: normalizeMediaUrl(club.logoUrl || club.imageUrl),
+  galleryUrls: (club.galleryUrls || []).map(normalizeMediaUrl),
+  imageUrls: (club.galleryUrls || []).map(normalizeMediaUrl),
   yandexMapsUrl: club.yandexMapsUrl || '',
   contactPhone: club.contactPhone || '',
   contactEmail: club.contactEmail || '',
@@ -140,7 +170,31 @@ export const serializeClub = (club) => ({
     endTime: schedule.endTime,
     ageGroup: schedule.ageGroup || '',
     coachName: schedule.coachName || '',
+    coachProfileId: schedule.coachProfileId || '',
+    coachId: schedule.coachProfileId || '',
+    priceCents: schedule.priceCents,
     note: schedule.note || '',
+  })),
+  passes: (club.plans || []).map((plan) => ({
+    id: plan.id,
+    clubId: plan.clubId || '',
+    sportId: plan.sportId,
+    title: plan.title,
+    description: plan.description || '',
+    tier: plan.tier,
+    priceCents: plan.priceCents,
+    currency: plan.currency,
+    durationDays: plan.durationDays,
+    isActive: Boolean(plan.isActive),
+  })),
+  subscriptions: (club.plans || []).map((plan) => ({
+    id: plan.id,
+    title: plan.title,
+    tier: plan.tier,
+    priceCents: plan.priceCents,
+    currency: plan.currency,
+    durationDays: plan.durationDays,
+    isActive: Boolean(plan.isActive),
   })),
   createdAt: club.createdAt,
   updatedAt: club.updatedAt,
@@ -151,6 +205,7 @@ export const serializePlan = (plan) => ({
   sportId: plan.sportId,
   sport: plan.sport ? serializeSport(plan.sport) : null,
   clubId: plan.clubId || '',
+  tier: plan.tier,
   club: plan.club
     ? {
         id: plan.club.id,
@@ -194,7 +249,13 @@ export const serializeSubscription = (subscription) => ({
       }
     : null,
   planId: subscription.planId,
+  passId: subscription.planId,
   plan: subscription.plan ? serializePlan(subscription.plan) : null,
+  title: subscription.plan?.title || '',
+  planTitle: subscription.plan?.title || '',
+  sportName: subscription.sport?.name || '',
+  clubName: subscription.club?.name || '',
+  durationDays: subscription.plan?.durationDays || 0,
   status: subscription.status,
   startsAt: subscription.startsAt,
   expiresAt: subscription.expiresAt,
@@ -212,7 +273,14 @@ export const clubInclude = {
     include: { user: true },
     orderBy: [{ experienceYears: 'desc' }, { createdAt: 'asc' }],
   },
-  schedules: { orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }] },
+  schedules: {
+    include: { coachProfile: { include: { user: true } } },
+    orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+  },
+  plans: {
+    where: { isActive: true },
+    orderBy: [{ priceCents: 'asc' }, { createdAt: 'asc' }],
+  },
 }
 
 export const coachProfileInclude = {

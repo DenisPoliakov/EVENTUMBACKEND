@@ -38,27 +38,27 @@ function StadiumsPage() {
         const res = await fetch('/russian-cities.json')
         const data = (await res.json()) as RuCity[]
         setRuCities(data)
-      } catch (err) {
+      } catch {
         // тихо, карта всё равно работает вручную
       }
     }
     load()
   }, [])
 
-  // при выборе города проставляем координаты центра
-  useEffect(() => {
-    if (!cityId) return
-    const city = cities?.find((c) => c.id === cityId)
-    if (!city) return
-    const ruCity = ruCities.find((c) => c.name.toLowerCase() === city.name.toLowerCase())
-    if (ruCity?.coords?.lat && ruCity?.coords?.lon) {
-      setForm((prev) => ({
-        ...prev,
-        latitude: Number(ruCity.coords?.lat ?? prev.latitude),
-        longitude: Number(ruCity.coords?.lon ?? prev.longitude),
+  const handleCityChange = (nextCityId: string) => {
+    setCityId(nextCityId)
+    const city = cities?.find((item) => item.id === nextCityId)
+    const ruCity = city
+      ? ruCities.find((item) => item.name.toLowerCase() === city.name.toLowerCase())
+      : undefined
+    if (ruCity?.coords?.lat && ruCity.coords.lon) {
+      setForm((previous) => ({
+        ...previous,
+        latitude: Number(ruCity.coords?.lat),
+        longitude: Number(ruCity.coords?.lon),
       }))
     }
-  }, [cityId, cities, ruCities])
+  }
 
   const currentCityCoords = useMemo(() => {
     const city = cities?.find((c) => c.id === cityId)
@@ -92,7 +92,7 @@ function StadiumsPage() {
         <div style={{ minWidth: 240 }}>
           <Select
             value={cityId}
-            onChange={setCityId}
+            onChange={handleCityChange}
             placeholder="Все города"
             options={[{ value: '', label: 'Все города' }, ...(cities || []).map((c) => ({ value: c.id, label: c.name }))]}
           />
@@ -105,7 +105,7 @@ function StadiumsPage() {
             <div className="form-section-title">Город</div>
             <Select
               value={cityId}
-              onChange={setCityId}
+              onChange={handleCityChange}
               placeholder="Выберите"
               options={[{ value: '', label: 'Выберите' }, ...(cities || []).map((c) => ({ value: c.id, label: c.name }))]}
             />

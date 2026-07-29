@@ -29,7 +29,7 @@ function CrmPage() {
   const [status, setStatus] = useState('')
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
 
-  const clients = data?.clients || []
+  const clients = useMemo(() => data?.clients || [], [data?.clients])
   const filteredClients = useMemo(() => {
     const query = q.trim().toLowerCase()
     return clients.filter((client) => {

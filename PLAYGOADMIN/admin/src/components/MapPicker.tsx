@@ -31,10 +31,11 @@ function ClickCatcher({ onChange }: { onChange: Props['onChange'] }) {
 
 function Recenter({ center, value }: { center?: { lat: number; lng: number }; value: { lat: number; lng: number } }) {
   const map = useMap()
+  const targetLat = center?.lat ?? value.lat
+  const targetLng = center?.lng ?? value.lng
   useEffect(() => {
-    const target = center || value
-    map.setView([target.lat, target.lng])
-  }, [center?.lat, center?.lng, value.lat, value.lng, map])
+    map.setView([targetLat, targetLng])
+  }, [map, targetLat, targetLng])
   return null
 }
 

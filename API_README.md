@@ -14,6 +14,17 @@ http://localhost:4000
 
 ## Что добавлено в этом обновлении
 
+- добавлены русскоязычные Wellness-истории:
+  - `GET /api/wellness-stories`
+  - `POST /api/me/wellness-stories/:id/view`
+  - CRUD и загрузка обложки в `/api/admin/wellness-stories`
+  - уникальные просмотры и `viewedByMe`
+- добавлены русскоязычные программы тренировок:
+  - публичный каталог, карточка и структурированные шаги
+  - Bearer-фиксация уникальных просмотров
+  - CRUD программ и шагов, точная перестановка и загрузка иллюстраций в админке
+- добавлена server-wins синхронизация истории тренировок через `/api/me/workout-sessions`
+- новости поддерживают тип `sponsored`, безопасную загрузку изображений и точные total/unique просмотры
 - добавлены direct-чаты между пользователями
 - добавлен чат пользователя с тренером через `coachProfileId`
 - добавлены ручки:
@@ -43,7 +54,20 @@ http://localhost:4000
   - привязка к клубу стала опциональной
 - публичный поиск карточек тренеров по городу клуба: `GET /api/coach-profiles/search`
 - пользовательский список абонементов закреплен за `GET /api/me/subscriptions`
+- клубы отдают `tier`, нормализованные `logoUrl` / `imageUrls`, активные
+  `passes` и расписание с серверной ценой и `coachProfileId`
+- добавлены бронирования тренировок:
+  - `GET /api/me/bookings`
+  - `POST /api/me/bookings`
+  - `GET /api/admin/bookings`
+  - `PATCH /api/admin/bookings/:id/status`
 - добавлено удаление собственного аккаунта через `DELETE /api/me`
+- добавлены безопасные заказы и платежи YooKassa:
+  - `POST /api/me/orders`
+  - `POST /api/webhooks/yookassa`
+  - `GET /api/admin/orders`
+- добавлены Premium через тот же проверяемый YooKassa pipeline, реферальные коды
+  без выдуманных наград и ротационные opaque refresh-токены
 - админское удаление пользователя теперь чистит связанные сущности пользователя корректно
 
 ## Быстрые правила
@@ -76,6 +100,97 @@ http://localhost:4000
 
 ## Public And App API
 
+### Auth refresh
+
+- `POST /api/auth/login` и `POST /api/auth/register` сохраняют прежние
+  `accessToken` / `user` и дополнительно возвращают `refreshToken` / `expiresIn`.
+- `POST /api/auth/refresh` принимает `{ "refreshToken": "..." }`, одноразово
+  ротирует opaque-токен и возвращает новый комплект. Повтор старого токена,
+  истёкший токен, а также токен заблокированного или удалённого пользователя
+  отклоняются с `401`.
+- `POST /api/auth/logout` отзывает переданный refresh-токен и возвращает `204`.
+- TTL задаются `ACCESS_TOKEN_TTL_SECONDS` и `REFRESH_TOKEN_TTL_SECONDS`;
+  в базе хранится только SHA-256 hash refresh-токена.
+
+### Premium and referrals
+
+- `GET /api/me/premium` (Bearer) возвращает `active`, `expiresAt`, серверную
+  цену, валюту и длительность тарифа.
+- `POST /api/me/premium` (Bearer + `Idempotency-Key`) создаёт Premium-заказ
+  в существующем `Order` / `Payment` / YooKassa pipeline и возвращает
+  `confirmationUrl`. По умолчанию цена — 299 RUB, срок — 30 дней.
+- Только проверенный `POST /api/webhooks/yookassa` активирует Premium.
+  Повтор webhook не продлевает срок повторно; новая оплаченная покупка
+  добавляет срок к текущей активной подписке.
+- `GET /api/me/referral` возвращает уникальный код, число приглашённых и
+  применённый пользователем код, если он есть.
+- `POST /api/me/referral/apply` принимает `code` или `referralCode`
+  без учёта регистра, запрещает собственный код и повторное применение.
+  Реферал учитывается только счётчиком; награда не начисляется.
+- `GET /api/admin/premium` (Basic) — read-only обзор тарифов и оплаченных
+  Premium-подписок. Ручная активация не предоставляется, чтобы не обходить
+  проверенный платёжный pipeline.
+
+### Orders and YooKassa payments
+
+- `POST /api/me/orders` (Bearer) создаёт только заказ, но не активный абонемент.
+  - `planId` и `passId` — aliases; требуется `Idempotency-Key`.
+  - `type`: `MEMBERSHIP` (`subscription` и `pass` принимаются как compatibility aliases).
+  - `clubId`, если передан, обязан совпадать с тарифом.
+  - цена, валюта и длительность берутся из `MembershipPlan`; несовпадающие
+    клиентские `priceCents`, `amountCents`, `currency`, `durationDays` отклоняются.
+  - ответ содержит snapshot заказа, платеж и `confirmationUrl`.
+  - без `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` сохраняется один `PENDING`
+    заказ и возвращается `503`, `code=PAYMENTS_NOT_CONFIGURED`; подписка не создаётся.
+- `POST /api/subscriptions` отключён (`410 DIRECT_SUBSCRIPTIONS_DISABLED`).
+- `POST /api/webhooks/yookassa` не доверяет payload: backend запрашивает платёж
+  у YooKassa по external ID, сверяет статус, сумму, валюту и metadata заказа,
+  после чего транзакционно создаёт ровно один активный `UserSubscription`.
+  Повторные webhook безопасны.
+- `GET /api/me/subscriptions` сохраняет вложенные compatibility-поля и также
+  отдаёт flat-поля `passId`, `title`, `planTitle`, `sportName`, `clubName`,
+  `durationDays`.
+- `GET /api/admin/orders` (Basic) поддерживает фильтры `status`,
+  `paymentStatus`, `clubId`, `userId`.
+
+### Clubs and training bookings
+
+- `GET /api/clubs`, `GET /api/clubs/:id`
+  - клуб содержит `tier` (`BRONZE` / `SILVER` / `GOLD`)
+  - `logoUrl` / `imageUrl` и `imageUrls` / `galleryUrls` возвращаются в
+    едином виде; локальные загрузки имеют относительный URL `/uploads/...`
+  - `passes` и alias `subscriptions` содержат только активные тарифы
+  - каждый элемент `schedules` содержит стабильный `id`, `priceCents`,
+    `coachProfileId` и aliases `coachId`
+- `GET /api/me/bookings`
+  - Bearer required; возвращает бронирования текущего пользователя
+  - фильтры: `status`, `clubId`
+- `POST /api/me/bookings`
+  - Bearer required
+  - обязательны `scheduleEntryId` (или alias `scheduleId`) и `scheduledAt`
+  - `clubId`, `coachProfileId` / `coachId` при передаче проверяются против
+    расписания и клуба
+  - цена всегда берётся из `ClubSchedule`; несовпадающий клиентский
+    `priceCents` отклоняется с `400`
+  - `platformFeeCents` фиксируется как 15% от серверной цены
+  - заблокированный пользователь получает `403`
+
+Пример запроса:
+
+```json
+{
+  "scheduleEntryId": "uuid",
+  "clubId": "uuid",
+  "coachId": "uuid",
+  "scheduledAt": "2026-08-05T18:00:00+03:00",
+  "note": "Первое занятие"
+}
+```
+
+Ответ содержит aliases `scheduleEntryId` / `scheduleId`,
+`coachProfileId` / `coachId`, snapshot `priceCents`,
+`platformFeeCents`, `currency`, `status`, клуб, тренера и даты.
+
 ### Health
 
 - `GET /api/health`
@@ -85,11 +200,143 @@ http://localhost:4000
 
 - `GET /api/news`
   - публичный feed новостей для приложения
+  - production-compatible guest endpoint: Bearer-токен не требуется, лимит жёстко ограничен 100
   - query:
     - `clubId`
     - `type`
-    - `limit`
+    - `limit` — строго 1–100, по умолчанию 40
   - отдает и ручные новости, и автоновости про новые стадионы/матчи
+  - `type` для CMS-новостей: `news` или `sponsored`; legacy-автоновости сохраняют `STADIUM_CREATED` / `MATCH_CREATED`
+  - каждая запись использует тот же DTO, что personal/admin feed: `type`, `viewCount`, `uniqueViewerCount`, `club`, `stadium`, `match`
+- `POST /api/me/news/:id/view`
+  - Bearer required
+  - каждый успешный вызов увеличивает `viewCount`
+  - только первый вызов пользователя увеличивает `uniqueViewerCount`
+  - ответ: `{ newsId, viewCount, uniqueViewerCount, isFirstViewByUser }`
+
+### Wellness Stories
+
+- `GET /api/wellness-stories`
+  - авторизация необязательна
+  - query:
+    - `locale` — только `ru`, по умолчанию `ru`
+    - `limit` — от 1 до 100, по умолчанию 50
+  - возвращает только активные, опубликованные и не удалённые истории
+  - если передан валидный Bearer-токен, `viewedByMe` показывает просмотр текущим пользователем
+  - если заголовок `Authorization` передан, но токен некорректен, возвращается `401`
+
+Ответ:
+
+```json
+{
+  "stories": [
+    {
+      "id": "uuid",
+      "slug": "recovery-after-training",
+      "title": "Как восстановиться после тренировки",
+      "body": "Текст истории",
+      "category": "routine",
+      "coverImageUrl": "/uploads/wellness-stories/cover.webp",
+      "readMinutes": 3,
+      "sortOrder": 10,
+      "locale": "ru",
+      "publishedAt": "2026-07-29T12:00:00.000Z",
+      "uniqueViewerCount": 24,
+      "viewedByMe": false
+    }
+  ]
+}
+```
+
+- `GET /api/wellness-stories/:identifier`
+  - возвращает одну доступную историю по UUID или стабильному `slug`
+  - `slug` опционален для старых и вручную созданных записей
+- `POST /api/me/wellness-stories/:id/view`
+  - Bearer required
+  - `:id` может быть UUID или `slug`
+  - фиксирует уникальный просмотр текущего пользователя
+  - повторный запрос того же пользователя не увеличивает счётчик
+
+Ответ:
+
+```json
+{
+  "storyId": "uuid",
+  "uniqueViewerCount": 25,
+  "isFirstViewByUser": true
+}
+```
+
+Категории: `nutrition`, `warmup`, `routine`, `workouts`, `balance`.
+
+### Workout Programs
+
+- `GET /api/workout-programs?locale=ru`
+  - авторизация необязательна; некорректный переданный Bearer-токен даёт `401`
+  - возвращает только активные русскоязычные программы по `sortOrder`
+  - каждая программа содержит `stepCount`, `totalDurationSeconds`, `uniqueViewerCount` и `viewedByMe`
+- `GET /api/workout-programs/:id`
+  - `:id` — стабильный slug программы
+  - возвращает карточку программы и агрегаты шагов
+- `GET /api/workout-programs/:id/steps`
+  - возвращает готовые структурированные шаги по `order`, без парсинга текста гайда
+  - фазы: `warmup` | `work` | `rest` | `cooldown`
+- `POST /api/me/workout-programs/:id/view`
+  - Bearer required
+  - идемпотентно фиксирует один просмотр на пару `programId + userId`
+  - ответ: `{ programId, uniqueViewerCount, isFirstViewByUser }`
+
+Ответ каталога:
+
+```json
+{
+  "programs": [
+    {
+      "id": "stable-slug",
+      "title": "Название",
+      "description": "Описание",
+      "estimatedMinutes": 25,
+      "sortOrder": 1,
+      "locale": "ru",
+      "stepCount": 6,
+      "totalDurationSeconds": 1200,
+      "uniqueViewerCount": 24,
+      "viewedByMe": false
+    }
+  ]
+}
+```
+
+### Workout Sessions
+
+- `GET /api/me/workout-sessions?from=&to=&limit=`
+  - Bearer required
+  - `from` / `to` фильтруют включительно по `finishedAt`
+  - `limit`: 1–500, по умолчанию 100
+- `POST /api/me/workout-sessions`
+  - сохраняет одну сессию; обязательны `programId`, `finishedAt`, `durationSeconds`, `source`
+- `POST /api/me/workout-sessions/bulk`
+  - body: `{ "sessions": [...] }`, от 1 до 500 элементов
+
+Поля: `startedAt` (опционально), `finishedAt`, `durationSeconds` (1–86400),
+`source` (`timer` | `manual` | `imported`), `customPlan` (JSON object или `null`) и
+опциональный `clientKey`. `clientKey` идемпотентен в пределах пользователя.
+Для legacy-импорта без ключа применяется дедупликация по
+`userId + programId + finishedAt`. При конфликте сервер возвращает уже сохранённую
+версию без перезаписи (server wins).
+
+### AI match history (storage only)
+
+- `GET /api/me/ai-matches?limit=20` — Bearer, история текущего пользователя, лимит 1–100
+- `POST /api/me/ai-matches` — Bearer, сохраняет переданные caller-ом `requestJson` и `resultJson`
+- `DELETE /api/me/ai-matches/:id` — удаляет только собственную запись
+- backend **не запускает AI и не генерирует рекомендации**; это только ограниченная история (не более 100 записей на пользователя, до 100 KB на JSON-поле)
+
+### Support tickets
+
+- `GET /api/me/support` — до 100 тикетов пользователя с публичной перепиской
+- `POST /api/me/support` — body `{ "subject": "...", "message": "..." }`
+- `POST /api/me/support/:id/replies` — добавить ответ пользователя; внутренние admin notes никогда не возвращаются
 
 ### Auth
 
@@ -295,13 +542,8 @@ Server → client:
     - `clubId`
     - `active`
   - список доступных абонементов
-- `POST /api/subscriptions`
-  - Bearer required
-  - body:
-    - `planId`
-    - optional:
-      - `startsAt`
-  - создает оплаченный абонемент пользователя
+- `POST /api/me/orders`
+  - Bearer required; начинает безопасную оплату YooKassa (см. выше)
 - `GET /api/me/subscriptions`
   - Bearer required
   - query:
@@ -329,7 +571,7 @@ Server → client:
 - абонемент относится к виду спорта, опционально к конкретному клубу/залу
 - `GET /api/me/subscriptions` всегда возвращает только абонементы текущего пользователя по Bearer-токену
 - `GET /api/me/subscriptions` возвращает массив абонементов в той же модели, что и `GET /api/admin/subscriptions`
-- `POST /api/subscriptions` сейчас фиксирует успешную оплату на стороне backend и возвращает уведомление `PAYMENT_SUCCESS`
+- активный абонемент создаётся только после проверенного webhook YooKassa
 - уведомление о сгорающем абонементе возвращается, если до конца осталось 7 дней или меньше
 
 ### Coach Profiles
@@ -524,7 +766,7 @@ Server → client:
 3. `GET /api/clubs?sportCode=BOXING&city=Москва&age=18`
 4. `GET /api/clubs/:id`
 5. `GET /api/subscription-plans?clubId=...`
-6. `POST /api/subscriptions`
+6. `POST /api/me/orders` с `Idempotency-Key`
 7. `GET /api/me/subscriptions`
 8. `GET /api/me/subscriptions/notifications`
 
@@ -684,6 +926,7 @@ Server → client:
     - `body`
     - optional:
       - `clubId`
+      - `type`: `news` | `sponsored` (по умолчанию `news`)
       - `imageUrl`
       - `publishedAt`
 - `PUT /api/admin/news/:id`
@@ -692,9 +935,14 @@ Server → client:
     - `body`
     - optional:
       - `clubId`
+      - `type`: `news` | `sponsored`
       - `imageUrl`
       - `publishedAt`
 - `DELETE /api/admin/news/:id`
+- `POST /api/admin/news/:id/image`
+  - `multipart/form-data`, поле `file`
+  - JPEG, PNG, WebP или GIF, максимум 5 MB
+  - заменяет прежний локальный файл безопасно
 
 Логика:
 - ручные новости создаются через `/api/admin/news`
@@ -702,6 +950,103 @@ Server → client:
 - при создании клубной новости backend рассылает уведомления пользователям, у которых этот клуб в избранном
 - автоновости создаются backend автоматически при создании новых стадионов и матчей
 - в приложении весь feed читается через `GET /api/news`
+- все admin/public/personal DTO содержат `viewCount` и `uniqueViewerCount`
+- аналитика хранится в пользовательских rows с каскадным удалением при GDPR-удалении аккаунта
+
+### Wellness Stories
+
+- `GET /api/admin/wellness-stories`
+  - список русскоязычных историй с `uniqueViewerCount`
+  - query:
+    - `includeDeleted=true` — включить мягко удалённые записи
+- `GET /api/admin/wellness-stories/:id`
+- `POST /api/admin/wellness-stories`
+- `PUT /api/admin/wellness-stories/:id`
+  - body:
+    - `title`
+    - `body`
+    - `category`: `nutrition` | `warmup` | `routine` | `workouts` | `balance`
+    - `readMinutes`: целое число от 1 до 120
+    - `sortOrder`: целое число
+    - `isActive`: boolean
+    - optional:
+      - `slug` — уникальный стабильный идентификатор: строчные латинские буквы, цифры и дефисы, до 120 символов
+      - `coverImageUrl`
+      - `publishedAt`
+      - `locale` — сейчас только `ru`
+- `POST /api/admin/wellness-stories/import`
+  - принимает объект `{"stories": [...]}` с явно переданными русскими историями
+  - для каждой истории обязателен уникальный `slug`; контент не генерируется и не дополняется заглушками
+  - все элементы сначала валидируются, затем транзакционно создаются или обновляются по `slug`
+  - повторный импорт идемпотентно обновляет ту же запись, сохраняя UUID
+  - максимум 500 историй за запрос
+- `DELETE /api/admin/wellness-stories/:id`
+  - soft delete: запись получает `deletedAt`, а `isActive` становится `false`
+- `POST /api/admin/wellness-stories/:id/cover`
+  - `multipart/form-data`
+  - поле `file`
+  - JPEG, PNG, WebP или GIF, максимум 5 MB
+  - возвращает относительный `url` и обновлённый объект `story`
+
+Логика:
+- публичная лента сортируется сначала по `sortOrder`, затем по `publishedAt`
+- активная история становится публичной только после `publishedAt`
+- уникальный просмотр хранится один раз для пары `storyId + userId`
+- `uniqueViewerCount` вычисляется по записям просмотров и автоматически остаётся корректным при удалении пользователя
+- удалённые истории и их аналитика сохраняются для админки, но не возвращаются клиенту
+
+### Workout Programs
+
+- `GET /api/admin/workout-programs`
+- `GET /api/admin/workout-programs/:id`
+- `POST /api/admin/workout-programs`
+- `PUT /api/admin/workout-programs/:id`
+- `DELETE /api/admin/workout-programs/:id`
+  - ID — обязательный неизменяемый slug из строчных латинских букв, цифр и дефисов
+  - поля: `title`, `subtitle`, `description`, `guide`, `iconKey`, `gradientStart`, `gradientEnd`, `estimatedMinutes`, `sortOrder`, `isActive`, `locale=ru`
+  - удаление каскадно удаляет шаги, просмотры и локальные иллюстрации
+- `GET /api/admin/workout-programs/:id/steps`
+- `POST /api/admin/workout-programs/:id/steps`
+- `PUT /api/admin/workout-programs/:id/steps/:stepId`
+- `DELETE /api/admin/workout-programs/:id/steps/:stepId`
+  - шаг содержит `phase`, `title`, `description`, `durationSeconds`, `poseIndex` и `order`
+- `PUT /api/admin/workout-programs/:id/steps/reorder`
+  - body: `{ "stepIds": ["id-в-первой-позиции", "id-во-второй-позиции"] }`
+  - массив должен содержать все шаги программы ровно один раз; перестановка транзакционная
+- `POST /api/admin/workout-programs/:id/steps/:stepId/illustration`
+  - `multipart/form-data`, поле `file`
+  - JPEG, PNG, WebP или GIF, максимум 5 MB
+  - новая иллюстрация заменяет старую с удалением прежнего локального файла
+
+Ответы программ содержат рассчитанные `stepCount`, `totalDurationSeconds` и `uniqueViewerCount`. Контент программ автоматически не создаётся и не импортируется.
+
+### Workout Analytics
+
+- `GET /api/admin/workout-analytics?from=&to=&popularLimit=`
+- диапазон по `finishedAt` по умолчанию 30 дней и не может превышать 366 дней
+- `popularLimit`: 1–50
+- ответ содержит ограниченные агрегаты: число сессий, уникальных пользователей, суммарную/среднюю длительность и популярные программы
+- раздел «Аналитика тренировок» в admin позволяет менять диапазон и видеть эти метрики
+
+### Manual Push Campaigns
+
+- `GET/POST /api/admin/push-campaigns`
+- `GET /api/admin/push-campaigns/:id/preview` — размер и пример аудитории без отправки
+- `POST /api/admin/push-campaigns/:id/send` — идемпотентная ручная отправка
+- `GET/POST /api/admin/push-campaigns/templates`
+- `PUT/DELETE /api/admin/push-campaigns/templates/:id`
+- сегменты: `ALL_USERS`, `SELECTED_USERS`, `FAVORITE_CLUB`; максимум 2000 получателей на кампанию
+- in-app notification сохраняется отдельно от FCM-доставки; без FCM credentials кампания получает `SKIPPED`, `pushSentCount=0`, а не ложный `SENT`
+- сохраняются статусы и счётчики аудитории, in-app записей, успешных FCM token deliveries, ошибок и пропусков
+
+### Support Queue
+
+- `GET /api/admin/support?status=&priority=` — очередь до 250 тикетов
+- `GET /api/admin/support/:id` — тикет, публичные ответы и внутренние заметки
+- `PATCH /api/admin/support/:id` — изменить `status` и/или `priority`
+- `POST /api/admin/support/:id/replies` — ответ пользователю и статус `WAITING_USER`
+- `POST /api/admin/support/:id/notes` — внутренняя заметка, не видимая пользователю
+- admin-раздел «Поддержка» предоставляет список, detail, статусы, приоритеты, replies и notes
 
 ### Ecosystem Sports
 

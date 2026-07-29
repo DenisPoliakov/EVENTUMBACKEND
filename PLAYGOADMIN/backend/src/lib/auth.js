@@ -1,7 +1,6 @@
 import crypto from 'crypto'
-
-const TOKEN_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me'
-const TOKEN_TTL_SECONDS = 60 * 60 * 24
+import { config } from '../config.js'
+import prisma from '../prisma.js'
 
 const base64url = (value) =>
   Buffer.from(value)
@@ -18,7 +17,7 @@ const decodeBase64url = (value) => {
 
 const sign = (payload) =>
   base64url(
-    crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest()
+    crypto.createHmac('sha256', config.jwtSecret).update(payload).digest()
   )
 
 export const hashPassword = (password) => {
@@ -43,7 +42,7 @@ export const signToken = ({ sub, email, username }) => {
       email,
       username,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
+      exp: Math.floor(Date.now() / 1000) + config.accessTokenTtlSeconds,
     })
   )
   const signature = sign(`${header}.${payload}`)
@@ -67,27 +66,89 @@ export const verifyToken = (token) => {
   return parsed
 }
 
-export const authResponse = (user, cityName = '') => ({
+const hashOpaqueToken = (token) =>
+  crypto.createHash('sha256').update(token).digest('hex')
+
+const createRefreshToken = async (userId, client = prisma) => {
+  const token = crypto.randomBytes(32).toString('base64url')
+  const expiresAt = new Date(Date.now() + config.refreshTokenTtlSeconds * 1000)
+  await client.refreshToken.create({
+    data: { userId, tokenHash: hashOpaqueToken(token), expiresAt },
+  })
+  return token
+}
+
+const serializeAuthUser = (user, cityName = '') => ({
+  id: user.id,
+  email: user.email,
+  username: user.username || '',
+  phone: user.phone || '',
+  firstName: user.firstName || '',
+  lastName: user.lastName || '',
+  city: cityName || user.city?.name || '',
+  isBlocked: Boolean(user.isBlocked),
+  blockReason: user.blockReason || '',
+  blockedUntil: user.blockedUntil || null,
+  matchBanUntil: user.matchBanUntil || null,
+  hasPlayerCard: Boolean(user.playerCard),
+})
+
+export const authResponse = async (user, cityName = '') => ({
   accessToken: signToken({
     sub: user.id,
     email: user.email,
     username: user.username || '',
   }),
-  user: {
-    id: user.id,
-    email: user.email,
-    username: user.username || '',
-    phone: user.phone || '',
-    firstName: user.firstName || '',
-    lastName: user.lastName || '',
-    city: cityName || user.city?.name || '',
-    isBlocked: Boolean(user.isBlocked),
-    blockReason: user.blockReason || '',
-    blockedUntil: user.blockedUntil || null,
-    matchBanUntil: user.matchBanUntil || null,
-    hasPlayerCard: Boolean(user.playerCard),
-  },
+  refreshToken: await createRefreshToken(user.id),
+  expiresIn: config.accessTokenTtlSeconds,
+  user: serializeAuthUser(user, cityName),
 })
+
+export const rotateRefreshToken = async (rawToken) => {
+  if (!rawToken) return null
+  const tokenHash = hashOpaqueToken(rawToken)
+  return prisma.$transaction(async (tx) => {
+    const stored = await tx.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: { include: { city: true, playerCard: true } } },
+    })
+    if (
+      !stored ||
+      stored.revokedAt ||
+      stored.expiresAt <= new Date() ||
+      !stored.user ||
+      stored.user.isBlocked &&
+        (!stored.user.blockedUntil || stored.user.blockedUntil > new Date())
+    ) {
+      return null
+    }
+    const revoked = await tx.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    })
+    if (revoked.count !== 1) return null
+    const refreshToken = await createRefreshToken(stored.userId, tx)
+    return {
+      accessToken: signToken({
+        sub: stored.user.id,
+        email: stored.user.email,
+        username: stored.user.username || '',
+      }),
+      refreshToken,
+      expiresIn: config.accessTokenTtlSeconds,
+      user: serializeAuthUser(stored.user),
+    }
+  })
+}
+
+export const revokeRefreshToken = async (rawToken) => {
+  if (!rawToken) return false
+  const result = await prisma.refreshToken.updateMany({
+    where: { tokenHash: hashOpaqueToken(rawToken), revokedAt: null },
+    data: { revokedAt: new Date() },
+  })
+  return result.count === 1
+}
 
 export const splitName = (name = '') => {
   const parts = name.trim().split(/\s+/).filter(Boolean)

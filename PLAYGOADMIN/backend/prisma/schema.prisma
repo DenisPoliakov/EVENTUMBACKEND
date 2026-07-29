@@ -62,12 +62,86 @@ enum TeamFieldPosition {
 
 enum NewsType {
   MANUAL
+  SPONSORED
   STADIUM_CREATED
   MATCH_CREATED
 }
 
+enum WellnessStoryCategory {
+  NUTRITION
+  WARMUP
+  ROUTINE
+  WORKOUTS
+  BALANCE
+}
+
+enum WorkoutPhase {
+  WARMUP
+  WORK
+  REST
+  COOLDOWN
+}
+
+enum WorkoutSessionSource {
+  TIMER
+  MANUAL
+  IMPORTED
+}
+
 enum UserNotificationType {
   FAVORITE_CLUB_NEWS
+  BOOKING_CONFIRMED
+  SUBSCRIPTION_EXPIRING
+  MANUAL_CAMPAIGN
+}
+
+enum PushPlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum PushDispatchStatus {
+  PENDING
+  SENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum PushCampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  PARTIAL
+  FAILED
+  SKIPPED
+}
+
+enum PushTargetSegment {
+  ALL_USERS
+  SELECTED_USERS
+  FAVORITE_CLUB
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportMessageAuthor {
+  USER
+  ADMIN
 }
 
 enum SubscriptionStatus {
@@ -76,20 +150,53 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+enum OrderType {
+  MEMBERSHIP
+  PREMIUM
+}
+
+enum OrderStatus {
+  PENDING
+  PAYMENT_CREATED
+  PAID
+  CANCELLED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  CANCELLED
+  FAILED
+}
+
+enum ClubTier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+enum TrainingBookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
 enum ChatMessageType {
   TEXT
 }
 
 model City {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  stadiums  Stadium[]
-  sportClubs SportClub[]
-  teams     Team[]
-  users     User[]
+  id          String       @id @default(uuid())
+  name        String       @unique
+  stadiums    Stadium[]
+  sportClubs  SportClub[]
+  teams       Team[]
+  users       User[]
   playerCards PlayerCard[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model Stadium {
@@ -111,57 +218,75 @@ model Stadium {
 }
 
 model Match {
-  id          String             @id @default(uuid())
-  stadiumId   String
-  stadium     Stadium            @relation(fields: [stadiumId], references: [id])
-  startTime   DateTime
-  endTime     DateTime
-  format      MatchFormat
-  maxTeams    Int
-  priceCents  Int?
-  currency    String? @default("USD")
-  status      MatchStatus
-  approvalMode MatchApprovalMode @default(MANUAL)
-  description String?
+  id            String              @id @default(uuid())
+  stadiumId     String
+  stadium       Stadium             @relation(fields: [stadiumId], references: [id])
+  startTime     DateTime
+  endTime       DateTime
+  format        MatchFormat
+  maxTeams      Int
+  priceCents    Int?
+  currency      String?             @default("USD")
+  status        MatchStatus
+  approvalMode  MatchApprovalMode   @default(MANUAL)
+  description   String?
   registrations MatchRegistration[]
-  news        News[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  news          News[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([startTime])
   @@index([status])
 }
 
 model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
-  username     String?       @unique
-  phone        String?
-  name         String
-  firstName    String?
-  lastName     String?
-  passwordHash String
-  role         Role          @default(USER)
-  cityId       String?
-  city         City?         @relation(fields: [cityId], references: [id])
-  isBlocked    Boolean       @default(false)
-  blockReason  String?
-  blockedUntil DateTime?
-  matchBanUntil DateTime?
-  playerCard   PlayerCard?
-  coachProfile CoachProfile?
-  memberships  TeamMember[]
-  captainedTeams Team[]      @relation("UserCaptain")
-  receivedTeamInvitations TeamInvitation[] @relation("TeamInvitationInvitee")
-  sentTeamInvitations TeamInvitation[] @relation("TeamInvitationInviter")
-  subscriptions UserSubscription[]
-  favoriteClubs FavoriteClub[]
-  notifications UserNotification[]
-  directChatsAsUserA DirectChat[] @relation("DirectChatUserA")
-  directChatsAsUserB DirectChat[] @relation("DirectChatUserB")
-  sentChatMessages ChatMessage[] @relation("ChatMessageSender")
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                      String                   @id @default(uuid())
+  email                   String                   @unique
+  username                String?                  @unique
+  phone                   String?
+  name                    String
+  firstName               String?
+  lastName                String?
+  passwordHash            String
+  role                    Role                     @default(USER)
+  cityId                  String?
+  city                    City?                    @relation(fields: [cityId], references: [id])
+  isBlocked               Boolean                  @default(false)
+  blockReason             String?
+  blockedUntil            DateTime?
+  matchBanUntil           DateTime?
+  playerCard              PlayerCard?
+  coachProfile            CoachProfile?
+  memberships             TeamMember[]
+  captainedTeams          Team[]                   @relation("UserCaptain")
+  receivedTeamInvitations TeamInvitation[]         @relation("TeamInvitationInvitee")
+  sentTeamInvitations     TeamInvitation[]         @relation("TeamInvitationInviter")
+  subscriptions           UserSubscription[]
+  favoriteClubs           FavoriteClub[]
+  notifications           UserNotification[]
+  pushTokens              PushToken[]
+  pushDispatches          PushDispatch[]
+  pushCampaignsCreated    PushCampaign[]           @relation("PushCampaignCreator")
+  aiMatchHistory          AiMatchHistory[]
+  supportTickets          SupportTicket[]
+  supportMessages         SupportMessage[]         @relation("SupportMessageUser")
+  directChatsAsUserA      DirectChat[]             @relation("DirectChatUserA")
+  directChatsAsUserB      DirectChat[]             @relation("DirectChatUserB")
+  sentChatMessages        ChatMessage[]            @relation("ChatMessageSender")
+  wellnessStoryViews      WellnessStoryView[]
+  workoutProgramViews     WorkoutProgramView[]
+  workoutSessions         WorkoutSession[]
+  newsViews               NewsView[]
+  newsUniqueViews         NewsUniqueView[]
+  trainingBookings        TrainingBooking[]
+  orders                  Order[]
+  premiumSubscriptions    AppPremiumSubscription[]
+  refreshTokens           RefreshToken[]
+  referralCode            String?                  @unique
+  referralRedemption      ReferralRedemption?      @relation("ReferredUser")
+  referralRedemptions     ReferralRedemption[]     @relation("Referrer")
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 }
 
 model PlayerCard {
@@ -189,120 +314,257 @@ model PlayerCard {
 }
 
 model Team {
-  id            String        @id @default(uuid())
+  id            String              @id @default(uuid())
   name          String
   cityId        String
-  city          City          @relation(fields: [cityId], references: [id])
+  city          City                @relation(fields: [cityId], references: [id])
   captainUserId String
-  captain       User          @relation("UserCaptain", fields: [captainUserId], references: [id])
+  captain       User                @relation("UserCaptain", fields: [captainUserId], references: [id])
   members       TeamMember[]
   invitations   TeamInvitation[]
   registrations MatchRegistration[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@unique([cityId, name])
 }
 
 model TeamMember {
-  id        String          @id @default(uuid())
-  teamId    String
-  userId    String
-  role      TeamMemberRole  @default(MEMBER)
+  id            String             @id @default(uuid())
+  teamId        String
+  userId        String
+  role          TeamMemberRole     @default(MEMBER)
   fieldPosition TeamFieldPosition?
-  team      Team            @relation(fields: [teamId], references: [id])
-  user      User            @relation(fields: [userId], references: [id])
-  createdAt DateTime        @default(now())
+  team          Team               @relation(fields: [teamId], references: [id])
+  user          User               @relation(fields: [userId], references: [id])
+  createdAt     DateTime           @default(now())
 
   @@unique([teamId, userId])
 }
 
 model TeamInvitation {
-  id               String               @id @default(uuid())
-  teamId           String
-  team             Team                 @relation(fields: [teamId], references: [id])
-  inviterUserId    String
-  inviter          User                 @relation("TeamInvitationInviter", fields: [inviterUserId], references: [id])
-  inviteeUserId    String
-  invitee          User                 @relation("TeamInvitationInvitee", fields: [inviteeUserId], references: [id])
+  id                String               @id @default(uuid())
+  teamId            String
+  team              Team                 @relation(fields: [teamId], references: [id])
+  inviterUserId     String
+  inviter           User                 @relation("TeamInvitationInviter", fields: [inviterUserId], references: [id])
+  inviteeUserId     String
+  invitee           User                 @relation("TeamInvitationInvitee", fields: [inviteeUserId], references: [id])
   inviteeIdentifier String
-  status           TeamInvitationStatus @default(PENDING)
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  respondedAt      DateTime?
+  status            TeamInvitationStatus @default(PENDING)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  respondedAt       DateTime?
 
   @@index([inviteeUserId, status])
   @@index([teamId, status])
 }
 
 model MatchRegistration {
-  id        String              @id @default(uuid())
-  matchId   String
-  teamId    String?
-  teamName  String
+  id           String             @id @default(uuid())
+  matchId      String
+  teamId       String?
+  teamName     String
   captainName  String
   captainLogin String
-  cityId    String
-  stadiumId String
+  cityId       String
+  stadiumId    String
   playersCount Int?
-  status    RegistrationStatus  @default(PENDING)
-  note      String?
-  match     Match               @relation(fields: [matchId], references: [id])
-  team      Team?               @relation(fields: [teamId], references: [id])
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  status       RegistrationStatus @default(PENDING)
+  note         String?
+  match        Match              @relation(fields: [matchId], references: [id])
+  team         Team?              @relation(fields: [teamId], references: [id])
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@unique([matchId, teamName])
 }
 
 model News {
-  id          String   @id @default(uuid())
-  title       String
-  body        String
-  imageUrl    String?
-  type        NewsType @default(MANUAL)
-  clubId      String?
-  club        SportClub? @relation(fields: [clubId], references: [id], onDelete: SetNull)
-  stadiumId   String?
-  stadium     Stadium? @relation(fields: [stadiumId], references: [id])
-  matchId     String?
-  match       Match?   @relation(fields: [matchId], references: [id])
+  id            String             @id @default(uuid())
+  title         String
+  body          String
+  imageUrl      String?
+  type          NewsType           @default(MANUAL)
+  clubId        String?
+  club          SportClub?         @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  stadiumId     String?
+  stadium       Stadium?           @relation(fields: [stadiumId], references: [id])
+  matchId       String?
+  match         Match?             @relation(fields: [matchId], references: [id])
   notifications UserNotification[]
-  publishedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  views         NewsView[]
+  uniqueViews   NewsUniqueView[]
+  publishedAt   DateTime           @default(now())
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@index([publishedAt])
   @@index([type])
   @@index([clubId])
 }
 
+model WellnessStory {
+  id            String                @id @default(uuid())
+  slug          String?               @unique
+  title         String
+  body          String
+  category      WellnessStoryCategory
+  coverImageUrl String?
+  readMinutes   Int                   @default(3)
+  sortOrder     Int                   @default(0)
+  locale        String                @default("ru")
+  publishedAt   DateTime              @default(now())
+  isActive      Boolean               @default(true)
+  deletedAt     DateTime?
+  views         WellnessStoryView[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([locale, isActive, deletedAt, sortOrder])
+  @@index([publishedAt])
+}
+
+model WellnessStoryView {
+  id       String        @id @default(uuid())
+  storyId  String
+  story    WellnessStory @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewedAt DateTime      @default(now())
+
+  @@unique([storyId, userId])
+  @@index([userId])
+  @@index([storyId])
+}
+
+model WorkoutProgram {
+  id               String               @id
+  title            String
+  subtitle         String?
+  description      String
+  guide            String?
+  iconKey          String?
+  gradientStart    String?
+  gradientEnd      String?
+  estimatedMinutes Int?
+  sortOrder        Int                  @default(0)
+  isActive         Boolean              @default(true)
+  locale           String               @default("ru")
+  steps            WorkoutStep[]
+  views            WorkoutProgramView[]
+  sessions         WorkoutSession[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([locale, isActive, sortOrder])
+}
+
+model WorkoutStep {
+  id              String         @id @default(uuid())
+  programId       String
+  program         WorkoutProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  order           Int
+  phase           WorkoutPhase
+  title           String
+  description     String?
+  durationSeconds Int
+  illustrationUrl String?
+  poseIndex       Int?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([programId, order])
+  @@index([programId])
+}
+
+model WorkoutProgramView {
+  id        String         @id @default(uuid())
+  programId String
+  program   WorkoutProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewedAt  DateTime       @default(now())
+
+  @@unique([programId, userId])
+  @@index([userId])
+  @@index([programId])
+}
+
+model WorkoutSession {
+  id              String               @id @default(uuid())
+  userId          String
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId       String
+  program         WorkoutProgram       @relation(fields: [programId], references: [id], onDelete: Restrict)
+  startedAt       DateTime?
+  finishedAt      DateTime
+  durationSeconds Int
+  source          WorkoutSessionSource
+  customPlan      Json?
+  clientKey       String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@unique([userId, clientKey])
+  @@unique([userId, programId, finishedAt])
+  @@index([userId, finishedAt])
+  @@index([programId, finishedAt])
+}
+
+model NewsView {
+  id       String   @id @default(uuid())
+  newsId   String
+  news     News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewedAt DateTime @default(now())
+
+  @@index([newsId])
+  @@index([userId])
+}
+
+model NewsUniqueView {
+  id       String   @id @default(uuid())
+  newsId   String
+  news     News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewedAt DateTime @default(now())
+
+  @@unique([newsId, userId])
+  @@index([userId])
+}
+
 model Sport {
-  id          String   @id @default(uuid())
-  code        String   @unique
-  name        String
-  description String?
-  clubs       SportClub[]
-  plans       MembershipPlan[]
+  id            String             @id @default(uuid())
+  code          String             @unique
+  name          String
+  description   String?
+  clubs         SportClub[]
+  plans         MembershipPlan[]
   subscriptions UserSubscription[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  orders        Order[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 }
 
 model SportClub {
-  id            String   @id @default(uuid())
+  id            String             @id @default(uuid())
   sportId       String
-  sport         Sport    @relation(fields: [sportId], references: [id])
+  sport         Sport              @relation(fields: [sportId], references: [id])
   cityId        String?
-  city          City?    @relation(fields: [cityId], references: [id])
+  city          City?              @relation(fields: [cityId], references: [id])
   name          String
   kind          String?
   address       String
   description   String?
-  latitude      Decimal? @db.Decimal(9, 6)
-  longitude     Decimal? @db.Decimal(9, 6)
+  latitude      Decimal?           @db.Decimal(9, 6)
+  longitude     Decimal?           @db.Decimal(9, 6)
   imageUrl      String?
+  logoUrl       String?
   galleryUrls   String[]
+  tier          ClubTier           @default(BRONZE)
   yandexMapsUrl String?
   contactPhone  String?
   contactEmail  String?
@@ -318,22 +580,25 @@ model SportClub {
   schedules     ClubSchedule[]
   plans         MembershipPlan[]
   subscriptions UserSubscription[]
+  bookings      TrainingBooking[]
+  orders        Order[]
   favoritedBy   FavoriteClub[]
   notifications UserNotification[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  pushCampaigns PushCampaign[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
+  @@unique([sportId, cityId, name])
   @@index([sportId])
   @@index([cityId])
-  @@unique([sportId, cityId, name])
 }
 
 model CoachProfile {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String            @id @default(uuid())
+  userId          String            @unique
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   clubId          String?
-  club            SportClub? @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  club            SportClub?        @relation(fields: [clubId], references: [id], onDelete: SetNull)
   firstName       String
   lastName        String
   experienceYears Int?
@@ -342,8 +607,10 @@ model CoachProfile {
   photoUrl        String?
   maxUrl          String?
   telegramUrl     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  schedules       ClubSchedule[]
+  bookings        TrainingBooking[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   @@index([clubId])
 }
@@ -362,62 +629,230 @@ model FavoriteClub {
 }
 
 model UserNotification {
-  id        String               @id @default(uuid())
-  userId    String
-  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      UserNotificationType
-  title     String
-  body      String
-  imageUrl  String?
-  clubId    String?
-  club      SportClub?           @relation(fields: [clubId], references: [id], onDelete: SetNull)
-  newsId    String?
-  news      News?                @relation(fields: [newsId], references: [id], onDelete: SetNull)
-  readAt    DateTime?
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  id         String               @id @default(uuid())
+  userId     String
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       UserNotificationType
+  title      String
+  body       String
+  imageUrl   String?
+  clubId     String?
+  club       SportClub?           @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  newsId     String?
+  news       News?                @relation(fields: [newsId], references: [id], onDelete: SetNull)
+  dedupeKey  String?              @unique
+  data       Json?
+  dispatch   PushDispatch?
+  campaignId String?
+  campaign   PushCampaign?        @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  readAt     DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@index([clubId])
   @@index([newsId])
+  @@index([campaignId])
+}
+
+model PushToken {
+  id         String       @id @default(uuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String       @unique
+  platform   PushPlatform
+  deviceId   String?
+  deviceName String?
+  appVersion String?
+  locale     String?
+  lastSeenAt DateTime     @default(now())
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([userId, platform, deviceId])
+  @@index([userId, updatedAt])
+}
+
+model PushDispatch {
+  id             String             @id @default(uuid())
+  userId         String
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationId String?            @unique
+  notification   UserNotification?  @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  campaignId     String?
+  campaign       PushCampaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  dedupeKey      String             @unique
+  status         PushDispatchStatus @default(PENDING)
+  tokenCount     Int                @default(0)
+  sentCount      Int                @default(0)
+  failedCount    Int                @default(0)
+  skippedReason  String?
+  lastError      String?
+  attemptedAt    DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([campaignId, status])
+}
+
+model PushTemplate {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  title     String
+  body      String
+  imageUrl  String?
+  data      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PushCampaign {
+  id                String             @id @default(uuid())
+  name              String
+  title             String
+  body              String
+  imageUrl          String?
+  data              Json?
+  status            PushCampaignStatus @default(DRAFT)
+  targetSegment     PushTargetSegment
+  selectedUserIds   String[]
+  audienceUserIds   String[]           @default([])
+  favoriteClubId    String?
+  favoriteClub      SportClub?         @relation(fields: [favoriteClubId], references: [id], onDelete: SetNull)
+  createdByUserId   String?
+  createdBy         User?              @relation("PushCampaignCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  recipientCount    Int                @default(0)
+  inAppCreatedCount Int                @default(0)
+  pushSentCount     Int                @default(0)
+  pushFailedCount   Int                @default(0)
+  pushSkippedCount  Int                @default(0)
+  lastError         String?
+  sendAttemptedAt   DateTime?
+  sentAt            DateTime?
+  notifications     UserNotification[]
+  dispatches        PushDispatch[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([favoriteClubId])
+}
+
+model AiMatchHistory {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestJson Json
+  resultJson  Json
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model SupportTicket {
+  id         String                @id @default(uuid())
+  userId     String
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject    String
+  status     SupportTicketStatus   @default(OPEN)
+  priority   SupportTicketPriority @default(NORMAL)
+  messages   SupportMessage[]
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  resolvedAt DateTime?
+
+  @@index([userId, updatedAt])
+  @@index([status, priority, updatedAt])
+}
+
+model SupportMessage {
+  id           String               @id @default(uuid())
+  ticketId     String
+  ticket       SupportTicket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorType   SupportMessageAuthor
+  authorUserId String?
+  authorUser   User?                @relation("SupportMessageUser", fields: [authorUserId], references: [id], onDelete: SetNull)
+  body         String
+  isInternal   Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+
+  @@index([ticketId, createdAt])
 }
 
 model ClubSchedule {
-  id        String    @id @default(uuid())
-  clubId    String
-  club      SportClub @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  title     String?
-  dayOfWeek Int?
-  startTime String
-  endTime   String
-  ageGroup  String?
-  coachName String?
-  note      String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id             String            @id @default(uuid())
+  clubId         String
+  club           SportClub         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  coachProfileId String?
+  coachProfile   CoachProfile?     @relation(fields: [coachProfileId], references: [id], onDelete: SetNull)
+  title          String?
+  dayOfWeek      Int?
+  startTime      String
+  endTime        String
+  ageGroup       String?
+  coachName      String?
+  priceCents     Int               @default(50000)
+  note           String?
+  bookings       TrainingBooking[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([clubId])
+  @@index([coachProfileId])
 }
 
 model MembershipPlan {
-  id           String   @id @default(uuid())
-  sportId      String
-  sport        Sport    @relation(fields: [sportId], references: [id])
-  clubId       String?
-  club         SportClub? @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  title        String
-  description  String?
-  priceCents   Int
-  currency     String   @default("RUB")
-  durationDays Int
-  isActive     Boolean  @default(true)
+  id            String             @id @default(uuid())
+  sportId       String
+  sport         Sport              @relation(fields: [sportId], references: [id])
+  clubId        String?
+  club          SportClub?         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  tier          ClubTier?
+  title         String
+  description   String?
+  priceCents    Int
+  currency      String             @default("RUB")
+  durationDays  Int
+  isActive      Boolean            @default(true)
   subscriptions UserSubscription[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  orders        Order[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@index([sportId])
   @@index([clubId])
+  @@index([tier])
+}
+
+model TrainingBooking {
+  id               String                @id @default(uuid())
+  userId           String
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubId           String
+  club             SportClub             @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  scheduleEntryId  String?
+  scheduleEntry    ClubSchedule?         @relation(fields: [scheduleEntryId], references: [id], onDelete: SetNull)
+  coachProfileId   String?
+  coachProfile     CoachProfile?         @relation(fields: [coachProfileId], references: [id], onDelete: SetNull)
+  scheduledAt      DateTime
+  scheduleTitle    String
+  note             String?
+  priceCents       Int
+  platformFeeCents Int
+  currency         String                @default("RUB")
+  status           TrainingBookingStatus @default(PENDING)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([userId, scheduledAt])
+  @@index([clubId, scheduledAt])
+  @@index([scheduleEntryId])
+  @@index([coachProfileId])
+  @@index([status])
 }
 
 model UserSubscription {
@@ -438,6 +873,7 @@ model UserSubscription {
   currency    String             @default("RUB")
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
+  order       Order?
 
   @@index([userId, status])
   @@index([sportId])
@@ -445,17 +881,130 @@ model UserSubscription {
   @@index([expiresAt])
 }
 
+model Order {
+  id                    String                  @id @default(uuid())
+  userId                String
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  planId                String?
+  plan                  MembershipPlan?         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  premiumPlanId         String?
+  premiumPlan           AppPremiumPlan?         @relation(fields: [premiumPlanId], references: [id], onDelete: Restrict)
+  clubId                String?
+  club                  SportClub?              @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  type                  OrderType               @default(MEMBERSHIP)
+  status                OrderStatus             @default(PENDING)
+  amountCents           Int
+  currency              String
+  durationDays          Int
+  idempotencyKey        String
+  requestFingerprint    String
+  subscriptionId        String?                 @unique
+  subscription          UserSubscription?       @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  premiumSubscriptionId String?                 @unique
+  premiumSubscription   AppPremiumSubscription? @relation(fields: [premiumSubscriptionId], references: [id], onDelete: Restrict)
+  payment               Payment?
+  paidAt                DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  Sport                 Sport?                  @relation(fields: [sportId], references: [id])
+  sportId               String?
+
+  @@unique([userId, idempotencyKey])
+  @@index([status, createdAt])
+  @@index([clubId])
+  @@index([planId])
+  @@index([premiumPlanId])
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  orderId         String        @unique
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  provider        String        @default("YOOKASSA")
+  externalId      String?       @unique
+  status          PaymentStatus @default(PENDING)
+  amountCents     Int
+  currency        String
+  confirmationUrl String?
+  providerPayload Json?
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model AppPremiumPlan {
+  id            String                   @id @default(uuid())
+  code          String                   @unique
+  title         String
+  description   String?
+  priceCents    Int                      @default(29900)
+  currency      String                   @default("RUB")
+  durationDays  Int                      @default(30)
+  isActive      Boolean                  @default(true)
+  subscriptions AppPremiumSubscription[]
+  orders        Order[]
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+}
+
+model AppPremiumSubscription {
+  id          String             @id @default(uuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId      String
+  plan        AppPremiumPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status      SubscriptionStatus @default(ACTIVE)
+  startsAt    DateTime
+  expiresAt   DateTime
+  paidAt      DateTime
+  amountCents Int
+  currency    String             @default("RUB")
+  order       Order?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([userId, status, expiresAt])
+  @@index([planId])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ReferralRedemption {
+  id             String   @id @default(uuid())
+  referrerUserId String
+  referrer       User     @relation("Referrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referredUserId String   @unique
+  referred       User     @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  code           String
+  createdAt      DateTime @default(now())
+
+  @@index([referrerUserId])
+}
+
 model DirectChat {
-  id             String        @id @default(uuid())
-  userAId        String
-  userA          User          @relation("DirectChatUserA", fields: [userAId], references: [id], onDelete: Cascade)
-  userBId        String
-  userB          User          @relation("DirectChatUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  id              String        @id @default(uuid())
+  userAId         String
+  userA           User          @relation("DirectChatUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId         String
+  userB           User          @relation("DirectChatUserB", fields: [userBId], references: [id], onDelete: Cascade)
   userALastReadAt DateTime?
   userBLastReadAt DateTime?
-  messages       ChatMessage[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  messages        ChatMessage[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@unique([userAId, userBId])
   @@index([userAId, updatedAt])

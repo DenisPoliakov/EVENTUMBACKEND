@@ -23,7 +23,7 @@ function CitiesPage() {
         const res = await fetch('/russian-cities.json')
         const data = (await res.json()) as RuCity[]
         setAllRuCities(data)
-      } catch (err) {
+      } catch {
         setError('Не удалось загрузить список городов')
       } finally {
         setLoadingList(false)

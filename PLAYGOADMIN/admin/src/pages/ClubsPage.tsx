@@ -23,6 +23,8 @@ const emptySchedule = (): ClubSchedule => ({
   endTime: '',
   ageGroup: '',
   coachName: '',
+  coachProfileId: '',
+  priceCents: 50000,
   note: '',
 })
 
@@ -30,6 +32,7 @@ const createEmptyForm = () => ({
   sportId: '',
   cityId: '',
   name: '',
+  tier: 'BRONZE',
   kind: '',
   address: '',
   description: '',
@@ -123,7 +126,7 @@ function ClubsPage() {
     const file = e.target.files?.[0]
     if (!file) return
     const relativeUrl = await uploadFile(file)
-    setForm((prev) => ({ ...prev, imageUrl: toAbsoluteUploadUrl(relativeUrl) }))
+    setForm((prev) => ({ ...prev, imageUrl: relativeUrl }))
   }
 
   const uploadGallery = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -133,7 +136,7 @@ function ClubsPage() {
     const uploaded = await Promise.all(
       files.map(async (file) => {
         const relativeUrl = await uploadFile(file)
-        return toAbsoluteUploadUrl(relativeUrl)
+        return relativeUrl
       }),
     )
 
@@ -174,6 +177,18 @@ function ClubsPage() {
           <div>
             <div className="form-section-title">Название</div>
             <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div>
+            <div className="form-section-title">Tier клуба</div>
+            <Select
+              value={form.tier}
+              onChange={(tier) => setForm({ ...form, tier })}
+              options={[
+                { value: 'BRONZE', label: 'Bronze' },
+                { value: 'SILVER', label: 'Silver' },
+                { value: 'GOLD', label: 'Gold' },
+              ]}
+            />
           </div>
           <div>
             <div className="form-section-title">Тип</div>
@@ -238,7 +253,7 @@ function ClubsPage() {
             <input className="input" type="file" accept="image/*" style={{ marginTop: 6 }} onChange={uploadCover} />
             {form.imageUrl ? (
               <img
-                src={form.imageUrl}
+                src={toAbsoluteUploadUrl(form.imageUrl)}
                 alt="Обложка клуба"
                 style={{ width: '100%', maxWidth: 320, height: 180, objectFit: 'cover', borderRadius: 14, marginTop: 10 }}
               />
@@ -267,7 +282,7 @@ function ClubsPage() {
                 {galleryPreview.map((url) => (
                   <img
                     key={url}
-                    src={url}
+                    src={toAbsoluteUploadUrl(url)}
                     alt="Фото клуба"
                     style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 12 }}
                   />
@@ -297,6 +312,28 @@ function ClubsPage() {
                 <input className="input" placeholder="Начало 18:00" value={schedule.startTime} onChange={(e) => setSchedule(index, { startTime: e.target.value })} />
                 <input className="input" placeholder="Конец 19:30" value={schedule.endTime} onChange={(e) => setSchedule(index, { endTime: e.target.value })} />
                 <input className="input" placeholder="Тренер" value={schedule.coachName || ''} onChange={(e) => setSchedule(index, { coachName: e.target.value })} />
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Цена, коп."
+                  value={schedule.priceCents}
+                  onChange={(e) => setSchedule(index, { priceCents: Number(e.target.value) })}
+                />
+                <Select
+                  value={schedule.coachProfileId || ''}
+                  onChange={(coachProfileId) => setSchedule(index, { coachProfileId })}
+                  options={[
+                    { value: '', label: 'Без карточки тренера' },
+                    ...(
+                      clubs?.find((club) => club.id === editingId)?.coachProfiles || []
+                    ).map((coach) => ({
+                      value: coach.id,
+                      label: `${coach.firstName} ${coach.lastName}`,
+                    })),
+                  ]}
+                />
                 <button className="button button-danger" type="button" onClick={() => setForm((prev) => ({ ...prev, schedules: prev.schedules.filter((_, i) => i !== index) }))}>
                   —
                 </button>
@@ -317,19 +354,20 @@ function ClubsPage() {
 
       <div className="cards-grid" style={{ marginTop: 16 }}>
         {clubs?.map((club: SportClub) => {
-          const previewImage = club.imageUrl || club.galleryUrls?.[0] || ''
+          const previewImage = club.logoUrl || club.imageUrl || club.galleryUrls?.[0] || ''
 
           return (
             <div key={club.id} className="match-card">
               {previewImage ? (
                 <img
-                  src={previewImage}
+                  src={toAbsoluteUploadUrl(previewImage)}
                   alt={club.name}
                   style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 14, marginBottom: 12 }}
                 />
               ) : null}
               <div className="small-label">{club.sport?.name || '—'} • {club.city || 'город не указан'}</div>
               <div style={{ fontWeight: 800, fontSize: 18 }}>{club.name}</div>
+              <div className="small-label">Tier: {club.tier}</div>
               <div>{club.address}</div>
               {club.contactPhone ? <div className="small-label">Телефон: {club.contactPhone}</div> : null}
               {club.contactEmail ? <div className="small-label">Email: {club.contactEmail}</div> : null}
@@ -351,6 +389,7 @@ function ClubsPage() {
                       sportId: club.sportId,
                       cityId: club.cityId || '',
                       name: club.name,
+                      tier: club.tier,
                       kind: club.kind || '',
                       address: club.address,
                       description: club.description || '',

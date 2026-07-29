@@ -268,6 +268,7 @@ export const attachChatRealtime = (server) => {
   }, 30000)
 
   wss.on('close', () => clearInterval(heartbeat))
+  return wss
 }
 
 export const getChatRealtimeStats = () => ({

@@ -1,47 +1,78 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import dayjs from 'dayjs'
-import { useDeleteMutation, useNews, usePostMutation, usePutMutation } from '../api/hooks'
-import { api, uploadFile } from '../api/client'
+import {
+  useClubs,
+  useDeleteMutation,
+  useNews,
+  usePostMutation,
+  usePutMutation,
+  useUploadNewsImage,
+} from '../api/hooks'
+import { api } from '../api/client'
+import Select from '../components/Select'
 import type { NewsItem } from '../types'
+
+const mediaUrl = (url: string) => {
+  if (/^https?:\/\//i.test(url)) return url
+  const base =
+    api.defaults.baseURL?.replace(/\/api\/admin\/?$/, '') ||
+    window.location.origin
+  return new URL(url, `${base}/`).toString()
+}
 
 function NewsPage() {
   const { data: news } = useNews()
+  const { data: clubs } = useClubs({})
   const createNews = usePostMutation('/news', ['news'])
   const updateNews = usePutMutation((payload) => `/news/${payload.id}`, ['news'])
   const deleteNews = useDeleteMutation((id) => `/news/${id}`, ['news'])
+  const uploadNewsImage = useUploadNewsImage()
 
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
   const [form, setForm] = useState({
     title: '',
     body: '',
     imageUrl: '',
+    type: 'news',
+    clubId: '',
     publishedAt: '',
   })
 
   const resetForm = () => {
     setEditingId(null)
+    setImageFile(null)
     setForm({
       title: '',
       body: '',
       imageUrl: '',
+      type: 'news',
+      clubId: '',
       publishedAt: '',
     })
   }
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!form.title.trim() || !form.body.trim()) return
 
     const payload = {
       ...form,
+      clubId: form.clubId || null,
       publishedAt: form.publishedAt || undefined,
     }
 
+    let newsId: string
     if (editingId) {
-      updateNews.mutate({ id: editingId, ...payload })
+      await updateNews.mutateAsync({ id: editingId, ...payload })
+      newsId = editingId
     } else {
-      createNews.mutate(payload)
+      const created = (await createNews.mutateAsync(payload)) as NewsItem
+      newsId = created.id
+    }
+    if (imageFile) {
+      await uploadNewsImage.mutateAsync({ id: newsId, file: imageFile })
     }
     resetForm()
   }
@@ -74,6 +105,33 @@ function NewsPage() {
               onChange={(e) => setForm({ ...form, publishedAt: e.target.value })}
             />
           </div>
+          <div>
+            <div className="form-section-title">Тип</div>
+            <Select
+              fullWidth
+              value={form.type}
+              onChange={(type) => setForm({ ...form, type })}
+              options={[
+                { value: 'news', label: 'Новость' },
+                { value: 'sponsored', label: 'Спонсорская' },
+              ]}
+            />
+          </div>
+          <div>
+            <div className="form-section-title">Клуб</div>
+            <Select
+              fullWidth
+              value={form.clubId}
+              onChange={(clubId) => setForm({ ...form, clubId })}
+              options={[
+                { value: '', label: 'Без привязки к клубу' },
+                ...(clubs || []).map((club) => ({
+                  value: club.id,
+                  label: club.name,
+                })),
+              ]}
+            />
+          </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <div className="form-section-title">Текст новости</div>
             <textarea
@@ -88,26 +146,27 @@ function NewsPage() {
             <input
               className="input"
               value={form.imageUrl}
-              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-              placeholder="https://... или /uploads/..."
+              readOnly
+              placeholder="Изображение не загружено"
             />
             <input
               className="input"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               style={{ marginTop: 6 }}
-              onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                const relativeUrl = await uploadFile(file)
-                const base = api.defaults.baseURL?.replace(/\/api(?:\/admin)?$/, '') || window.location.origin
-                const fullUrl = new URL(relativeUrl, base).toString()
-                setForm((prev) => ({ ...prev, imageUrl: fullUrl }))
-              }}
+              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
             />
           </div>
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="button" type="submit" disabled={createNews.isPending || updateNews.isPending}>
+            <button
+              className="button"
+              type="submit"
+              disabled={
+                createNews.isPending ||
+                updateNews.isPending ||
+                uploadNewsImage.isPending
+              }
+            >
               {editingId ? 'Сохранить изменения' : 'Опубликовать новость'}
             </button>
             {editingId && (
@@ -130,8 +189,10 @@ function NewsPage() {
             <div className="actions-row" style={{ justifyContent: 'space-between' }}>
               <div>
                 <div className="small-label">
-                  {item.type === 'MANUAL'
-                    ? 'Ручная новость'
+                  {item.type === 'news'
+                    ? 'Новость'
+                    : item.type === 'sponsored'
+                      ? 'Спонсорская новость'
                     : item.type === 'STADIUM_CREATED'
                       ? 'Автоновость: стадион'
                       : 'Автоновость: матч'}
@@ -148,6 +209,9 @@ function NewsPage() {
                       title: item.title,
                       body: item.body,
                       imageUrl: item.imageUrl || '',
+                      type:
+                        item.type === 'sponsored' ? 'sponsored' : 'news',
+                      clubId: item.clubId || '',
                       publishedAt: item.publishedAt ? dayjs(item.publishedAt).format('YYYY-MM-DDTHH:mm') : '',
                     })
                   }}
@@ -165,7 +229,7 @@ function NewsPage() {
             </div>
             {item.imageUrl ? (
               <img
-                src={item.imageUrl}
+                src={mediaUrl(item.imageUrl)}
                 alt={item.title}
                 style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 14, marginTop: 12 }}
               />
@@ -173,6 +237,10 @@ function NewsPage() {
             <div style={{ marginTop: 12, color: '#cdd8e5', whiteSpace: 'pre-wrap' }}>{item.body}</div>
             <div className="small-label" style={{ marginTop: 12 }}>
               {item.publishedAt ? dayjs(item.publishedAt).format('DD.MM.YYYY HH:mm') : ''}
+            </div>
+            <div className="small-label" style={{ marginTop: 6 }}>
+              {item.club ? `Клуб: ${item.club.name} · ` : ''}
+              Просмотры: {item.viewCount} · Уник. пользователи: {item.uniqueViewerCount}
             </div>
           </div>
         ))}

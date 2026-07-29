@@ -1,6 +1,7 @@
 import express from 'express'
 import prisma from '../prisma.js'
 import { generateUsername } from '../lib/auth.js'
+import { ensureReferralCode } from '../lib/referrals.js'
 import { deleteUserAccount } from '../lib/userDeletion.js'
 
 const router = express.Router()
@@ -59,6 +60,12 @@ router.get('/', async (req, res, next) => {
         city: true,
         memberships: true,
         captainedTeams: true,
+        premiumSubscriptions: {
+          where: { status: 'ACTIVE', expiresAt: { gt: new Date() } },
+          orderBy: { expiresAt: 'desc' },
+          take: 1,
+        },
+        _count: { select: { referralRedemptions: true } },
       },
     })
     res.json(users)
@@ -86,7 +93,8 @@ router.post('/', async (req, res, next) => {
         cityId,
       },
     })
-    res.status(201).json(user)
+    const referralCode = await ensureReferralCode(user.id)
+    res.status(201).json({ ...user, referralCode })
   } catch (err) {
     next(err)
   }
@@ -143,6 +151,12 @@ router.patch('/:id/moderation', async (req, res, next) => {
         city: true,
         memberships: true,
         captainedTeams: true,
+        premiumSubscriptions: {
+          where: { status: 'ACTIVE', expiresAt: { gt: new Date() } },
+          orderBy: { expiresAt: 'desc' },
+          take: 1,
+        },
+        _count: { select: { referralRedemptions: true } },
       },
     })
     res.json(user)

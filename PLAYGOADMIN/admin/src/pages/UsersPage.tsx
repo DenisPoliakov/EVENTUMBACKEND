@@ -233,6 +233,13 @@ function UserModerationCard({
         <div className="small-label">Обновлен: {formatDate(user.updatedAt)}</div>
         <div className="small-label">Команд: {user.memberships?.length ?? 0}</div>
         <div className="small-label">Капитан: {user.captainedTeams?.length ?? 0}</div>
+        <div className="small-label">Реферальный код: {user.referralCode || 'ещё не создан'}</div>
+        <div className="small-label">Приглашено: {user._count?.referralRedemptions ?? 0}</div>
+        <div className="small-label">
+          Premium: {user.premiumSubscriptions?.[0]
+            ? `активен до ${formatDate(user.premiumSubscriptions[0].expiresAt)}`
+            : 'не активен'}
+        </div>
         <div className="actions-row" style={{ marginTop: 10, gap: 8, flexWrap: 'wrap' }}>
           <span className="badge" style={{ background: platformBlocked ? '#ef4444' : '#e5e7eb', color: platformBlocked ? '#fff' : '#111827' }}>
             {platformBlocked ? `Блок${blockedUntil ? ` до ${formatDate(blockedUntil)}` : ' навсегда'}` : 'Без платформенного блока'}

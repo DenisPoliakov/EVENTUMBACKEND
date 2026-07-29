@@ -15,13 +15,21 @@ const ecosystemNavItems = [
   { to: '/clubs', label: 'Клубы и залы' },
   { to: '/subscription-plans', label: 'Абонементы' },
   { to: '/subscriptions', label: 'Оплаты' },
+  { to: '/bookings', label: 'Бронирования' },
 ]
 
 const commonNavItems = [
+  { to: '/premium', label: 'Premium' },
+  { to: '/orders', label: 'Заказы YooKassa' },
   { to: '/crm', label: 'CRM' },
   { to: '/cities', label: 'Города' },
   { to: '/users', label: 'Пользователи' },
   { to: '/news', label: 'Новости' },
+  { to: '/wellness-stories', label: 'Wellness-истории' },
+  { to: '/workout-programs', label: 'Программы тренировок' },
+  { to: '/workout-analytics', label: 'Аналитика тренировок' },
+  { to: '/push-campaigns', label: 'Push-кампании' },
+  { to: '/support', label: 'Поддержка' },
   { to: '/sports', label: 'Виды спорта' },
 ]
 

@@ -26,6 +26,7 @@ function SubscriptionPlansPage() {
   const [form, setForm] = useState({
     sportId: '',
     clubId: '',
+    tier: '',
     title: '',
     description: '',
     priceRub: '',
@@ -42,6 +43,7 @@ function SubscriptionPlansPage() {
     setForm({
       sportId: '',
       clubId: '',
+      tier: '',
       title: '',
       description: '',
       priceRub: '',
@@ -57,6 +59,7 @@ function SubscriptionPlansPage() {
     const payload = {
       sportId: form.sportId,
       clubId: form.clubId || undefined,
+      tier: form.tier || undefined,
       title: form.title,
       description: form.description,
       priceCents: Math.round((parseFloat(form.priceRub || '0') || 0) * 100),
@@ -101,6 +104,19 @@ function SubscriptionPlansPage() {
             <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </div>
           <div>
+            <div className="form-section-title">Tier</div>
+            <Select
+              value={form.tier}
+              onChange={(tier) => setForm({ ...form, tier })}
+              options={[
+                { value: '', label: 'Без tier' },
+                { value: 'BRONZE', label: 'Bronze' },
+                { value: 'SILVER', label: 'Silver' },
+                { value: 'GOLD', label: 'Gold' },
+              ]}
+            />
+          </div>
+          <div>
             <div className="form-section-title">Цена, ₽</div>
             <input className="input" type="number" value={form.priceRub} onChange={(e) => setForm({ ...form, priceRub: e.target.value })} />
           </div>
@@ -130,6 +146,7 @@ function SubscriptionPlansPage() {
               <th>Абонемент</th>
               <th>Спорт</th>
               <th>Клуб</th>
+              <th>Tier</th>
               <th>Цена</th>
               <th>Дней</th>
               <th>Статус</th>
@@ -142,6 +159,7 @@ function SubscriptionPlansPage() {
                 <td>{plan.title}</td>
                 <td>{plan.sport?.name || '—'}</td>
                 <td>{plan.club?.name || 'Все клубы'}</td>
+                <td>{plan.tier || '—'}</td>
                 <td>{(plan.priceCents / 100).toFixed(2)} {plan.currency}</td>
                 <td>{plan.durationDays}</td>
                 <td>{plan.isActive ? 'Активен' : 'Выключен'}</td>
@@ -155,6 +173,7 @@ function SubscriptionPlansPage() {
                         setForm({
                           sportId: plan.sportId,
                           clubId: plan.clubId || '',
+                          tier: plan.tier || '',
                           title: plan.title,
                           description: plan.description || '',
                           priceRub: (plan.priceCents / 100).toString(),

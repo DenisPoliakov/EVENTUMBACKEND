@@ -1,12 +1,18 @@
 import express from 'express'
 import prisma from '../prisma.js'
-import { planInclude, serializePlan, toNullableInt } from '../lib/ecosystem.js'
+import {
+  normalizeClubTier,
+  planInclude,
+  serializePlan,
+  toNullableInt,
+} from '../lib/ecosystem.js'
 
 const router = express.Router()
 
 const buildWhere = (query) => ({
   sportId: query.sportId || undefined,
   clubId: query.clubId || undefined,
+  tier: normalizeClubTier(query.tier, true) || undefined,
   isActive:
     query.active === undefined ? undefined : String(query.active).trim() === 'true',
 })
@@ -14,6 +20,7 @@ const buildWhere = (query) => ({
 const buildData = (body) => ({
   sportId: body.sportId,
   clubId: body.clubId || null,
+  tier: normalizeClubTier(body.tier, true),
   title: String(body.title || '').trim(),
   description: String(body.description || '').trim() || null,
   priceCents: toNullableInt(body.priceCents),
@@ -40,6 +47,9 @@ router.post('/', async (req, res, next) => {
     const data = buildData(req.body)
     if (!data.sportId || !data.title || data.priceCents == null || !data.durationDays) {
       return res.status(400).json({ error: 'sportId, title, priceCents and durationDays are required' })
+    }
+    if (req.body.tier && !data.tier) {
+      return res.status(400).json({ error: 'tier is invalid' })
     }
     const plan = await prisma.membershipPlan.create({
       data: {
@@ -70,6 +80,9 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const data = buildData(req.body)
+    if (req.body.tier && !data.tier) {
+      return res.status(400).json({ error: 'tier is invalid' })
+    }
     const plan = await prisma.membershipPlan.update({
       where: { id: req.params.id },
       data,

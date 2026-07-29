@@ -9,7 +9,11 @@ import {
   hasActiveRegistrationForTeam,
   syncMatchStatusByCapacity,
 } from '../lib/registrations.js'
-import { newsIncludeShape, serializeNews } from '../lib/news.js'
+import {
+  newsIncludeShape,
+  normalizeNewsTypeFilter,
+  serializeNews,
+} from '../lib/news.js'
 const router = express.Router()
 
 const hasActiveMatchBan = (user) =>
@@ -21,19 +25,32 @@ const hasActiveBlock = (user) => {
   return new Date(user.blockedUntil) > new Date()
 }
 
-router.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+router.get('/health', async (_req, res) => {
+  const timestamp = new Date().toISOString()
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    res.json({ status: 'ok', database: 'up', timestamp })
+  } catch (err) {
+    console.error('Health check database query failed', err)
+    res.status(503).json({ status: 'degraded', database: 'down', timestamp })
+  }
 })
 
 router.get('/news', async (req, res, next) => {
   try {
-    const rawLimit = Number.parseInt(String(req.query.limit || ''), 10)
-    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : undefined
+    const limit = req.query.limit === undefined ? 40 : Number(req.query.limit)
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return res.status(400).json({
+        error: 'limit must be an integer between 1 and 100',
+      })
+    }
+    const type = normalizeNewsTypeFilter(req.query.type)
+    if (type === null) return res.status(400).json({ error: 'type is invalid' })
 
     const news = await prisma.news.findMany({
       where: {
         clubId: req.query.clubId || undefined,
-        type: req.query.type || undefined,
+        type,
       },
       orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
       include: newsIncludeShape,
