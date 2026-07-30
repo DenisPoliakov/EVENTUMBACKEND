@@ -81,6 +81,29 @@ All future migrations must use a later timestamp, be generated from the
 current schema, and be tested from both a fresh database and a production-like
 backup before deployment.
 
+## Demo data seed
+
+From `PLAYGOADMIN/backend`, run:
+
+```sh
+npm run db:seed
+```
+
+The idempotent seed creates or updates demo cities, sports, clubs, coaches,
+schedules, membership plans, users/player cards, friends, chats/messages,
+teams, a match, news, favorites, notifications, a subscription, a booking,
+wellness stories, and a workout program/session. It never deletes existing
+records and uses stable `demo-*` identifiers where models have no natural
+unique key, so running it repeatedly does not multiply demo records.
+
+Default application login: `demo_user_01` / `Demo123!`. Override the shared
+password with `DEMO_PASSWORD` and generate between 6 and 100 users with
+`DEMO_USER_COUNT`. The command is blocked when `NODE_ENV=production`; an
+intentional disposable demo environment must explicitly set
+`ALLOW_PRODUCTION_DEMO_SEED=true`. Seeding `TEST_DATABASE_URL` is also blocked
+unless `ALLOW_TEST_DEMO_SEED=true`, because integration tests expect to manage
+their own fixtures.
+
 ## Tests
 
 `npm test` always runs foundation tests. Database/wellness tests are read-only

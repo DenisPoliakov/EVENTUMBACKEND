@@ -7,9 +7,13 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "test": "node --test",
-    "check": "node --check src/app.js && node --check src/config.js && node --check src/index.js && prisma validate",
+    "check": "node --check src/app.js && node --check src/config.js && node --check src/index.js && node --check prisma/seed.js && prisma validate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "",
