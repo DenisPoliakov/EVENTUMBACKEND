@@ -407,9 +407,14 @@ http://localhost:4000
 Realtime:
 - WebSocket endpoint: `ws://localhost:4000/api/ws/chats?token=<accessToken>`
 - авторизация тем же app-токеном, что и REST: `Bearer <token>`
-- realtime работает поверх тех же `DirectChat` / `ChatMessage`
+- удалённые и активно заблокированные пользователи не могут открыть соединение
+- при истечении access token сервер закрывает соединение с кодом `4001`; клиент должен обновить token и переподключиться
+- одно авторизованное соединение доставляет события чатов и пользовательских уведомлений
+- realtime чатов работает поверх тех же `DirectChat` / `ChatMessage`
 - REST-отправка сообщения через `POST /api/me/chats/:chatId/messages` тоже рассылает WS-события участникам чата
 - REST-отметка прочтения через `POST /api/me/chats/:chatId/read` тоже рассылает WS-события участникам чата
+- после подключения backend отправляет `notifications:sync` с актуальным количеством непрочитанных
+- создание и изменение `UserNotification` сразу отправляется в открытое приложение; перезапуск для обновления списка не нужен
 
 Client → server:
 - `{"type":"ping"}`
@@ -423,7 +428,13 @@ Server → client:
 - `{"type":"chat:subscribed","chatId":"...","chat":{...}}`
 - `{"type":"chat:message","chatId":"...","message":{...},"chat":{...},"clientMessageId":"..."}`
 - `{"type":"chat:read","chatId":"...","userId":"...","readAt":"...","chat":{...}}`
+- `{"type":"notifications:sync","unreadCount":3,"at":"..."}`
+- `{"type":"notification:upserted","notification":{...},"unreadCount":4}`
+- `{"type":"notification:updated","notification":{...},"unreadCount":3}`
+- `{"type":"notifications:read-all","unreadCount":0,"readAt":"..."}`
 - `{"type":"error","code":"...","message":"..."}`
+
+Клиент должен держать соединение открытым, переподключаться после потери сети и обновлять локальный список/бейдж по событиям `notification:*` и `notifications:*`. FCM остаётся каналом для background/terminated-состояния приложения.
 
 - `GET /api/me/chats`
   - Bearer required

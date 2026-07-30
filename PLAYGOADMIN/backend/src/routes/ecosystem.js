@@ -29,6 +29,7 @@ import {
   serializeUserNotification,
   sortNewsWithFavoritesFirst,
 } from '../lib/personalization.js'
+import { broadcastToUser } from '../lib/chatRealtime.js'
 
 const router = express.Router()
 
@@ -485,8 +486,20 @@ router.patch('/me/notifications/:id/read', requireAuth, async (req, res, next) =
     })
 
     const favoriteClubIds = await getFavoriteClubIds(req.auth.sub)
+    const serialized = serializeUserNotification(notification, { favoriteClubIds })
+    const unreadCount = await prisma.userNotification.count({
+      where: {
+        userId: req.auth.sub,
+        readAt: null,
+      },
+    })
+    broadcastToUser(req.auth.sub, {
+      type: 'notification:updated',
+      notification: serialized,
+      unreadCount,
+    })
     res.json({
-      notification: serializeUserNotification(notification, { favoriteClubIds }),
+      notification: serialized,
     })
   } catch (err) {
     next(err)
@@ -506,6 +519,11 @@ router.post('/me/notifications/read-all', requireAuth, async (req, res, next) =>
       },
     })
 
+    broadcastToUser(req.auth.sub, {
+      type: 'notifications:read-all',
+      unreadCount: 0,
+      readAt: now,
+    })
     res.json({
       updatedCount: result.count,
       readAt: now,

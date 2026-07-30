@@ -1,4 +1,5 @@
 import prisma from '../prisma.js'
+import { broadcastToUser } from './chatRealtime.js'
 import { sendFcmMulticast } from './fcm.js'
 
 const INVALID_TOKEN_CODES = new Set([
@@ -8,6 +9,22 @@ const INVALID_TOKEN_CODES = new Set([
 
 let pushSender = sendFcmMulticast
 let dispatchScheduler = (callback) => setImmediate(callback)
+
+const serializeRealtimeNotification = (notification) => ({
+  id: notification.id,
+  userId: notification.userId,
+  type: notification.type,
+  title: notification.title,
+  body: notification.body,
+  imageUrl: notification.imageUrl || '',
+  clubId: notification.clubId || '',
+  newsId: notification.newsId || '',
+  data: notification.data || {},
+  isRead: Boolean(notification.readAt),
+  readAt: notification.readAt,
+  createdAt: notification.createdAt,
+  updatedAt: notification.updatedAt,
+})
 
 export const setPushSenderForTests = (sender) => {
   pushSender = sender || sendFcmMulticast
@@ -216,5 +233,20 @@ export const createNotificationWithPush = async ({
   })
 
   if (queue) queuePushDispatch(result.dispatch.id)
+  try {
+    const unreadCount = await prisma.userNotification.count({
+      where: {
+        userId,
+        readAt: null,
+      },
+    })
+    broadcastToUser(userId, {
+      type: 'notification:upserted',
+      notification: serializeRealtimeNotification(result.notification),
+      unreadCount,
+    })
+  } catch (error) {
+    console.error(`Realtime notification ${result.notification.id} failed:`, error)
+  }
   return result
 }

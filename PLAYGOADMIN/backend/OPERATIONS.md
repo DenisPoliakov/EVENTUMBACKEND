@@ -11,6 +11,20 @@ at startup when production credentials or origins are missing.
 `status: "degraded"` when the database is unavailable. SIGTERM and SIGINT stop
 HTTP/WebSocket traffic and disconnect Prisma before exit.
 
+## WebSocket proxying and scaling
+
+The authenticated `/api/ws/chats` connection carries both chat and in-app
+notification events. A reverse proxy or load balancer must forward HTTP/1.1
+`Upgrade` and `Connection: upgrade` headers and use an idle timeout longer than
+the server's 30-second heartbeat. Do not log the `token` query parameter; mobile
+clients should prefer `Sec-WebSocket-Protocol: bearer.<accessToken>` where
+supported.
+
+Connected clients are currently stored in process memory. Run one backend
+instance for reliable realtime delivery. Before horizontal scaling, add shared
+pub/sub (for example Redis) so an event created on one instance reaches sockets
+connected to another. FCM and REST persistence remain durable fallback paths.
+
 ## Migration baseline and current drift
 
 Do not run `prisma migrate reset` against any shared or user database. Take a

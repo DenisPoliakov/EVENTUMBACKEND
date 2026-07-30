@@ -63,6 +63,10 @@ const sendToUser = (userId, payload) => {
   clients.forEach((client) => sendJson(client, payload))
 }
 
+export const broadcastToUser = (userId, payload) => {
+  sendToUser(userId, payload)
+}
+
 const getParticipantIds = (chat) => [chat.userAId, chat.userBId].filter(Boolean)
 
 const broadcastChatSnapshot = async (chatId, type = 'chat:updated', extra = {}) => {
@@ -219,9 +223,9 @@ const handleIncoming = async (ws, raw) => {
 }
 
 export const attachChatRealtime = (server) => {
-  wss = new WebSocketServer({ noServer: true })
+  wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 })
 
-  server.on('upgrade', (req, socket, head) => {
+  server.on('upgrade', async (req, socket, head) => {
     const url = new URL(req.url || '', 'http://localhost')
     if (url.pathname !== '/api/ws/chats') {
       socket.write('HTTP/1.1 404 Not Found\r\n\r\n')
@@ -232,22 +236,69 @@ export const attachChatRealtime = (server) => {
     try {
       const token = getTokenFromRequest(req)
       const payload = verifyToken(token)
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          isBlocked: true,
+          blockedUntil: true,
+        },
+      })
+      if (!user) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+        socket.destroy()
+        return
+      }
+      const hasActiveBlock =
+        user.isBlocked && (!user.blockedUntil || user.blockedUntil > new Date())
+      if (hasActiveBlock) {
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
+        socket.destroy()
+        return
+      }
+      if (socket.destroyed) return
 
       wss.handleUpgrade(req, socket, head, (ws) => {
         ws.userId = payload.sub
         ws.isAlive = true
+        const tokenExpiresInMs = Math.max(payload.exp * 1000 - Date.now(), 0)
+        ws.tokenExpiryTimer = setTimeout(() => {
+          ws.close(4001, 'Access token expired')
+        }, tokenExpiresInMs)
+        ws.tokenExpiryTimer.unref()
         addClient(payload.sub, ws)
         sendJson(ws, {
           type: 'connected',
           userId: payload.sub,
           at: new Date().toISOString(),
         })
+        prisma.userNotification
+          .count({
+            where: {
+              userId: payload.sub,
+              readAt: null,
+            },
+          })
+          .then((unreadCount) => {
+            sendJson(ws, {
+              type: 'notifications:sync',
+              unreadCount,
+              at: new Date().toISOString(),
+            })
+          })
+          .catch((err) => {
+            console.error('Notification websocket sync failed', err)
+          })
         ws.on('message', (raw) => handleIncoming(ws, raw))
         ws.on('pong', () => {
           ws.isAlive = true
         })
-        ws.on('close', () => removeClient(payload.sub, ws))
-        ws.on('error', () => removeClient(payload.sub, ws))
+        const cleanup = () => {
+          clearTimeout(ws.tokenExpiryTimer)
+          removeClient(payload.sub, ws)
+        }
+        ws.on('close', cleanup)
+        ws.on('error', cleanup)
       })
     } catch (_err) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
