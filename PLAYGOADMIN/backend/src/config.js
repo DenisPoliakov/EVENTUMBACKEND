@@ -116,6 +116,15 @@ export const config = Object.freeze({
   premiumPriceCents: parsePositiveInteger('PREMIUM_PRICE_CENTS', 29900),
   premiumDurationDays: parsePositiveInteger('PREMIUM_DURATION_DAYS', 30),
   premiumCurrency: process.env.PREMIUM_CURRENCY?.trim().toUpperCase() || 'RUB',
+  referralRewardCents: parseNonNegativeInteger('REFERRAL_REWARD_CENTS', 10000),
+  referredBonusPremiumDays: parseNonNegativeInteger(
+    'REFERRED_BONUS_PREMIUM_DAYS',
+    7,
+  ),
+  referralApplyWindowHours: parsePositiveInteger(
+    'REFERRAL_APPLY_WINDOW_HOURS',
+    7 * 24,
+  ),
   pushExpiryIntervalMinutes: parseNonNegativeInteger(
     'PUSH_EXPIRY_INTERVAL_MINUTES',
     0,

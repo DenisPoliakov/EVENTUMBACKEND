@@ -1,34 +1,22 @@
 import express from 'express'
 
-import { config } from '../config.js'
 import { orderInclude, requestFingerprint, serializeOrder } from '../lib/orders.js'
+import { getConfiguredPremiumPlan } from '../lib/premium.js'
+import {
+  getPremiumCreditSummary,
+  PremiumCreditError,
+  purchasePremiumWithCredits,
+} from '../lib/premiumCredits.js'
 import { createYooKassaPayment, PaymentsNotConfiguredError } from '../lib/yookassa.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 import prisma from '../prisma.js'
 
 const router = express.Router()
 
-const getConfiguredPlan = () =>
-  prisma.appPremiumPlan.upsert({
-    where: { code: 'DEFAULT' },
-    update: {
-      priceCents: config.premiumPriceCents,
-      currency: config.premiumCurrency,
-      durationDays: config.premiumDurationDays,
-    },
-    create: {
-      code: 'DEFAULT',
-      title: 'EVENTUM Premium',
-      priceCents: config.premiumPriceCents,
-      currency: config.premiumCurrency,
-      durationDays: config.premiumDurationDays,
-    },
-  })
-
 router.get('/me/premium', requireAuth, async (req, res, next) => {
   try {
-    const [plan, subscription] = await Promise.all([
-      getConfiguredPlan(),
+    const [plan, subscription, account] = await Promise.all([
+      getConfiguredPremiumPlan(),
       prisma.appPremiumSubscription.findFirst({
         where: {
           userId: req.auth.sub,
@@ -36,6 +24,9 @@ router.get('/me/premium', requireAuth, async (req, res, next) => {
           expiresAt: { gt: new Date() },
         },
         orderBy: { expiresAt: 'desc' },
+      }),
+      prisma.premiumCreditAccount.findUnique({
+        where: { userId: req.auth.sub },
       }),
     ])
     res.json({
@@ -45,6 +36,13 @@ router.get('/me/premium', requireAuth, async (req, res, next) => {
       currency: plan.currency,
       durationDays: plan.durationDays,
       planId: plan.id,
+      premiumCredits: {
+        balanceCents: account?.balanceCents || 0,
+        earnedCents: account?.earnedCents || 0,
+        spentCents: account?.spentCents || 0,
+        currency: account?.currency || plan.currency,
+        canPurchase: (account?.balanceCents || 0) >= plan.priceCents,
+      },
     })
   } catch (error) {
     next(error)
@@ -57,7 +55,7 @@ router.post('/me/premium', requireAuth, async (req, res, next) => {
     if (!idempotencyKey || idempotencyKey.length > 200) {
       return res.status(400).json({ error: 'Idempotency-Key header is required (max 200 characters)' })
     }
-    const plan = await getConfiguredPlan()
+    const plan = await getConfiguredPremiumPlan()
     if (!plan.isActive) return res.status(409).json({ error: 'Premium plan is not active' })
     for (const [field, expected] of [
       ['priceCents', plan.priceCents],
@@ -154,6 +152,45 @@ router.post('/me/premium', requireAuth, async (req, res, next) => {
       throw error
     }
   } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/me/premium/credits', requireAuth, async (req, res, next) => {
+  try {
+    const parsedLimit = Number.parseInt(String(req.query.limit || ''), 10)
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 50
+    res.json(await getPremiumCreditSummary(req.auth.sub, limit))
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/me/premium/credits/purchase', requireAuth, async (req, res, next) => {
+  try {
+    const result = await purchasePremiumWithCredits({
+      userId: req.auth.sub,
+      idempotencyKey: req.get('Idempotency-Key'),
+    })
+    res.status(result.created ? 201 : 200).json({
+      order: serializeOrder(result.order),
+      premiumCredits: {
+        balanceCents: result.account?.balanceCents || 0,
+        earnedCents: result.account?.earnedCents || 0,
+        spentCents: result.account?.spentCents || 0,
+        currency: result.account?.currency || result.order.currency,
+      },
+    })
+  } catch (error) {
+    if (error instanceof PremiumCreditError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+        ...error.details,
+      })
+    }
     next(error)
   }
 })

@@ -81,6 +81,26 @@ All future migrations must use a later timestamp, be generated from the
 current schema, and be tested from both a fresh database and a production-like
 backup before deployment.
 
+## Referral rewards and Premium credits
+
+Apply `20260730211500_add_referral_premium_credits` before deploying the
+corresponding backend. Referral redemption, inviter credit, ledger entry, and
+the invitee's bonus subscription are committed in one database transaction.
+
+Defaults are 100 RUB of non-withdrawable Premium-only credits for the inviter,
+7 Premium days for the invitee, and a 168-hour application window. Configure
+these with `REFERRAL_REWARD_CENTS`, `REFERRED_BONUS_PREMIUM_DAYS`, and
+`REFERRAL_APPLY_WINDOW_HOURS`. Existing redemptions are not rewarded
+retroactively. Changes to reward amounts affect only new redemptions because
+each redemption stores the amounts that were actually granted.
+
+Credits can only cover a complete Premium purchase. A purchase requires an
+`Idempotency-Key`, records a paid internal order and a signed ledger entry, and
+does not create a YooKassa payment. Keep `PREMIUM_CURRENCY` stable after credits
+have been issued; changing currency requires an explicit balance migration.
+Account deletion forfeits any remaining balance with a `REVERSAL` entry. Credit
+transactions are then anonymized and retained instead of being cascade-deleted.
+
 ## Demo data seed
 
 From `PLAYGOADMIN/backend`, run:

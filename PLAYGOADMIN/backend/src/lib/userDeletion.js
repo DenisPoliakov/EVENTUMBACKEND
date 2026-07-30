@@ -18,6 +18,7 @@ export const deleteUserAccount = async (userId) => {
     const user = await tx.user.findUnique({
       where: { id: userId },
       include: {
+        premiumCreditAccount: true,
         captainedTeams: {
           include: {
             members: {
@@ -32,6 +33,25 @@ export const deleteUserAccount = async (userId) => {
     if (!user) return null
 
     const affectedMatchIds = new Set()
+
+    if (user.premiumCreditAccount?.balanceCents > 0) {
+      const forfeitedCents = user.premiumCreditAccount.balanceCents
+      await tx.premiumCreditAccount.update({
+        where: { userId },
+        data: { balanceCents: 0 },
+      })
+      await tx.premiumCreditTransaction.create({
+        data: {
+          userId,
+          type: 'REVERSAL',
+          amountCents: -forfeitedCents,
+          balanceAfterCents: 0,
+          currency: user.premiumCreditAccount.currency,
+          idempotencyKey: `account-deletion-forfeit:${userId}`,
+          metadata: { reason: 'ACCOUNT_DELETION' },
+        },
+      })
+    }
 
     for (const team of user.captainedTeams) {
       const replacement = getReplacementCaptain(team.members, userId)

@@ -51,16 +51,20 @@ test(
     process.env.YOOKASSA_SHOP_ID = 'shop'
     process.env.YOOKASSA_SECRET_KEY = 'secret'
     process.env.YOOKASSA_API_URL = `http://127.0.0.1:${provider.address().port}/v3`
-    const [{ default: app }, { default: prisma }, auth] = await Promise.all([
+    process.env.REFERRAL_REWARD_CENTS = '10000'
+    process.env.REFERRED_BONUS_PREMIUM_DAYS = '7'
+    process.env.REFERRAL_APPLY_WINDOW_HOURS = '168'
+    const [{ default: app }, { default: prisma }, auth, userDeletion] = await Promise.all([
       import('../src/app.js'),
       import('../src/prisma.js'),
       import('../src/lib/auth.js'),
+      import('../src/lib/userDeletion.js'),
     ])
     const marker = `phase-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`
     const users = []
 
     try {
-      for (const suffix of ['owner', 'referred', 'other', 'auth']) {
+      for (const suffix of ['owner', 'referred', 'other', 'auth', 'late']) {
         users.push(await prisma.user.create({
           data: {
             email: `${marker}-${suffix}@example.com`,
@@ -70,7 +74,7 @@ test(
           },
         }))
       }
-      const [owner, referred, other, authUser] = users
+      const [owner, referred, other, authUser, lateUser] = users
       const tokenFor = (user) =>
         auth.signToken({ sub: user.id, email: user.email, username: user.username })
       const bearer = (user) => ({ Authorization: `Bearer ${tokenFor(user)}` })
@@ -78,6 +82,32 @@ test(
       const ownerReferral = await request(app).get('/api/me/referral').set(bearer(owner))
       assert.equal(ownerReferral.status, 200)
       assert.match(ownerReferral.body.referralCode, /^[A-F0-9]{10}$/)
+
+      await prisma.user.update({
+        where: { id: lateUser.id },
+        data: { createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
+      })
+      const lateApply = await request(app)
+        .post('/api/me/referral/apply')
+        .set(bearer(lateUser))
+        .send({ code: ownerReferral.body.referralCode })
+      assert.equal(lateApply.status, 409)
+
+      const invalidSignupEmail = `${marker}-invalid-signup@example.com`
+      const invalidSignup = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: invalidSignupEmail,
+          username: `${marker}-invalid-signup`,
+          password: 'password123',
+          city: 'Москва',
+          referralCode: 'DOESNOTEXIST',
+        })
+      assert.equal(invalidSignup.status, 404)
+      assert.equal(
+        await prisma.user.count({ where: { email: invalidSignupEmail } }),
+        0,
+      )
 
       const selfApply = await request(app)
         .post('/api/me/referral/apply')
@@ -90,6 +120,24 @@ test(
         .set(bearer(referred))
         .send({ referralCode: ownerReferral.body.referralCode.toLowerCase() })
       assert.equal(apply.status, 201)
+      assert.equal(apply.body.referredBonusPremiumDays, 7)
+      assert.ok(apply.body.premiumExpiresAt)
+      const referredPremium = await request(app)
+        .get('/api/me/premium')
+        .set(bearer(referred))
+      assert.equal(referredPremium.status, 200)
+      assert.equal(referredPremium.body.active, true)
+      const insufficientCredits = await request(app)
+        .post('/api/me/premium/credits/purchase')
+        .set({
+          ...bearer(referred),
+          'Idempotency-Key': `${marker}-insufficient-credits`,
+        })
+        .send({})
+      assert.equal(insufficientCredits.status, 409)
+      assert.equal(insufficientCredits.body.code, 'INSUFFICIENT_PREMIUM_CREDITS')
+      assert.equal(insufficientCredits.body.balanceCents, 0)
+      assert.equal(insufficientCredits.body.requiredCents, 29900)
       const duplicate = await request(app)
         .post('/api/me/referral/apply')
         .set(bearer(referred))
@@ -102,6 +150,40 @@ test(
         .set(bearer(other))
         .send({ code: 'DOESNOTEXIST' })
       assert.equal(unknown.status, 404)
+
+      const otherApply = await request(app)
+        .post('/api/me/referral/apply')
+        .set(bearer(other))
+        .send({ code: ownerReferral.body.referralCode })
+      assert.equal(otherApply.status, 201)
+      const authApply = await request(app)
+        .post('/api/me/referral/apply')
+        .set(bearer(authUser))
+        .send({ code: ownerReferral.body.referralCode })
+      assert.equal(authApply.status, 201)
+
+      const signup = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: `${marker}-signup@example.com`,
+          username: `${marker}-signup`,
+          password: 'password123',
+          firstName: 'Signup',
+          lastName: 'Referral',
+          city: 'Москва',
+          referralCode: ownerReferral.body.referralCode.toLowerCase(),
+        })
+      assert.equal(signup.status, 201)
+      assert.equal(signup.body.referralBonus.applied, true)
+      assert.equal(signup.body.referralBonus.premiumDays, 7)
+      users.push(signup.body.user)
+
+      const rewardedOwner = await request(app)
+        .get('/api/me/referral')
+        .set(bearer(owner))
+      assert.equal(rewardedOwner.body.referralCount, 4)
+      assert.equal(rewardedOwner.body.premiumCredits.balanceCents, 40000)
+      assert.equal(rewardedOwner.body.rewards.referrerRewardCents, 10000)
 
       const login = await request(app)
         .post('/api/auth/login')
@@ -213,6 +295,68 @@ test(
       const premiumAfter = await request(app).get('/api/me/premium').set(bearer(owner))
       assert.equal(premiumAfter.body.active, true)
       assert.equal(new Date(premiumAfter.body.expiresAt).toISOString(), secondExpiry.toISOString())
+
+      const creditPurchaseHeaders = {
+        ...bearer(owner),
+        'Idempotency-Key': `${marker}-credits-1`,
+      }
+      const creditPurchase = await request(app)
+        .post('/api/me/premium/credits/purchase')
+        .set(creditPurchaseHeaders)
+        .send({})
+      assert.equal(creditPurchase.status, 201)
+      assert.equal(creditPurchase.body.order.status, 'PAID')
+      assert.equal(creditPurchase.body.order.payment, null)
+      assert.equal(creditPurchase.body.premiumCredits.balanceCents, 10100)
+      const creditReplay = await request(app)
+        .post('/api/me/premium/credits/purchase')
+        .set(creditPurchaseHeaders)
+        .send({})
+      assert.equal(creditReplay.status, 200)
+      assert.equal(creditReplay.body.order.id, creditPurchase.body.order.id)
+      assert.equal(creditReplay.body.premiumCredits.balanceCents, 10100)
+      const credits = await request(app)
+        .get('/api/me/premium/credits')
+        .set(bearer(owner))
+      assert.equal(credits.status, 200)
+      assert.equal(credits.body.earnedCents, 40000)
+      assert.equal(credits.body.spentCents, 29900)
+      assert.equal(
+        credits.body.transactions.filter((item) => item.type === 'REFERRAL_REWARD').length,
+        4,
+      )
+      assert.equal(
+        credits.body.transactions.filter((item) => item.type === 'PREMIUM_PURCHASE').length,
+        1,
+      )
+
+      const ownerTransactionIds = (
+        await prisma.premiumCreditTransaction.findMany({
+          where: { userId: owner.id },
+          select: { id: true },
+        })
+      ).map((item) => item.id)
+      await userDeletion.deleteUserAccount(owner.id)
+      assert.equal(
+        await prisma.premiumCreditAccount.findUnique({ where: { userId: owner.id } }),
+        null,
+      )
+      const retainedTransactions = await prisma.premiumCreditTransaction.findMany({
+        where: {
+          OR: [
+            { id: { in: ownerTransactionIds } },
+            { idempotencyKey: `account-deletion-forfeit:${owner.id}` },
+          ],
+        },
+      })
+      assert.equal(retainedTransactions.length, ownerTransactionIds.length + 1)
+      assert.ok(retainedTransactions.every((item) => item.userId === null))
+      const reversal = retainedTransactions.find((item) => item.type === 'REVERSAL')
+      assert.equal(reversal.amountCents, -10100)
+      assert.equal(reversal.balanceAfterCents, 0)
+      await prisma.premiumCreditTransaction.deleteMany({
+        where: { id: { in: retainedTransactions.map((item) => item.id) } },
+      })
     } finally {
       const userIds = users.map((user) => user.id)
       await prisma.payment.deleteMany({ where: { order: { userId: { in: userIds } } } })

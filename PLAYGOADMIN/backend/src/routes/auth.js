@@ -10,7 +10,7 @@ import {
   splitName,
   verifyPassword,
 } from '../lib/auth.js'
-import { ensureReferralCode } from '../lib/referrals.js'
+import { applyReferralCode, ensureReferralCode } from '../lib/referrals.js'
 import { deleteUserAccount } from '../lib/userDeletion.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 
@@ -80,6 +80,9 @@ router.post('/auth/register', async (req, res, next) => {
     const firstName = (req.body.firstName || '').trim()
     const lastName = (req.body.lastName || '').trim()
     const cityName = (req.body.city || '').trim()
+    const referralCode = String(
+      req.body.referralCode ?? req.body.inviteCode ?? '',
+    ).trim()
 
     if (!email || !usernameInput || !password || !cityName) {
       return res.status(400).json({ error: 'email, username, password and city are required' })
@@ -106,7 +109,25 @@ router.post('/auth/register', async (req, res, next) => {
     })
 
     await ensureReferralCode(user.id)
-    return res.status(201).json(await authResponse(user, city?.name || cityName))
+    let referral = null
+    if (referralCode) {
+      referral = await applyReferralCode(user.id, referralCode)
+      if (referral.error) {
+        await prisma.user.delete({ where: { id: user.id } })
+        return res.status(referral.status).json({ error: referral.error })
+      }
+    }
+    const response = await authResponse(user, city?.name || cityName)
+    return res.status(201).json({
+      ...response,
+      referralBonus: referral
+        ? {
+            applied: true,
+            premiumDays: referral.redemption.referredBonusDays,
+            expiresAt: referral.bonusSubscription?.expiresAt || null,
+          }
+        : null,
+    })
   } catch (err) {
     next(err)
   }

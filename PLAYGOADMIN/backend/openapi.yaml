@@ -103,6 +103,13 @@
           expiresIn:
             type: integer
             description: Срок access token в секундах
+          referralBonus:
+            nullable: true
+            type: object
+            properties:
+              applied: { type: boolean }
+              premiumDays: { type: integer }
+              expiresAt: { type: string, format: date-time, nullable: true }
 
       RefreshTokenRequest:
         type: object
@@ -127,6 +134,40 @@
           city:
             type: string
             description: Название города; при отсутствии в БД будет создан
+          referralCode:
+            type: string
+            description: Необязательный код приглашения; неверный код отменяет регистрацию
+          inviteCode:
+            type: string
+            description: Alias for referralCode
+
+      PremiumCredits:
+        type: object
+        required: [balanceCents, earnedCents, spentCents, currency]
+        properties:
+          balanceCents: { type: integer, minimum: 0 }
+          earnedCents: { type: integer, minimum: 0 }
+          spentCents: { type: integer, minimum: 0 }
+          currency: { type: string, example: RUB }
+          canPurchase: { type: boolean }
+
+      PremiumCreditTransaction:
+        type: object
+        required: [id, type, amountCents, balanceAfterCents, currency, createdAt]
+        properties:
+          id: { type: string, format: uuid }
+          type:
+            type: string
+            enum: [REFERRAL_REWARD, PREMIUM_PURCHASE, ADMIN_ADJUSTMENT, REVERSAL]
+          amountCents:
+            type: integer
+            description: Положительное начисление или отрицательное списание
+          balanceAfterCents: { type: integer, minimum: 0 }
+          currency: { type: string }
+          referralRedemptionId: { type: string }
+          orderId: { type: string }
+          metadata: { type: object, additionalProperties: true }
+          createdAt: { type: string, format: date-time }
 
       LoginRequest:
         type: object
@@ -3264,7 +3305,7 @@
         summary: Текущий Premium-статус и серверный тариф
         responses:
           '200':
-            description: Статус, expiry, цена, валюта и длительность
+            description: Статус, expiry, цена, валюта, длительность и Premium-кредиты
       post:
         tags: [Public]
         security: [{ bearerAuth: [] }]
@@ -3282,11 +3323,59 @@
           '200': { description: Идемпотентный повтор }
           '503': { description: YooKassa не настроена }
 
+    /api/me/premium/credits:
+      get:
+        tags: [Public]
+        security: [{ bearerAuth: [] }]
+        summary: Баланс и журнал внутренних Premium-кредитов
+        parameters:
+          - name: limit
+            in: query
+            schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        responses:
+          '200':
+            description: Баланс и последние операции
+            content:
+              application/json:
+                schema:
+                  allOf:
+                    - $ref: '#/components/schemas/PremiumCredits'
+                    - type: object
+                      properties:
+                        transactions:
+                          type: array
+                          items: { $ref: '#/components/schemas/PremiumCreditTransaction' }
+
+    /api/me/premium/credits/purchase:
+      post:
+        tags: [Public]
+        security: [{ bearerAuth: [] }]
+        summary: Купить Premium полностью за внутренние кредиты
+        description: Цена и срок берутся с сервера. Частичная доплата и вывод кредитов не поддерживаются.
+        parameters:
+          - name: Idempotency-Key
+            in: header
+            required: true
+            schema: { type: string, maxLength: 200 }
+        responses:
+          '201':
+            description: Premium куплен, кредиты списаны атомарно
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    order: { $ref: '#/components/schemas/Order' }
+                    premiumCredits: { $ref: '#/components/schemas/PremiumCredits' }
+          '200': { description: Идемпотентный повтор без нового списания }
+          '400': { description: Отсутствует Idempotency-Key }
+          '409': { description: Недостаточно кредитов или тариф неактивен }
+
     /api/me/referral:
       get:
         tags: [Public]
         security: [{ bearerAuth: [] }]
-        summary: Реферальный код, число приглашённых и применённый код
+        summary: Реферальный код, приглашённые, Premium-кредиты и условия награды
         responses:
           '200': { description: Реферальный статус }
 
@@ -3294,7 +3383,7 @@
       post:
         tags: [Public]
         security: [{ bearerAuth: [] }]
-        summary: Однократно применить чужой код без учёта регистра
+        summary: Применить чужой код и атомарно начислить обе награды
         requestBody:
           required: true
           content:
@@ -3305,10 +3394,10 @@
                   referralCode: { type: string }
                   code: { type: string, description: Alias for referralCode }
         responses:
-          '201': { description: Код применён }
+          '201': { description: Код применён, владельцу начислены кредиты, пользователю — бонусный Premium }
           '400': { description: Пустой или собственный код }
           '404': { description: Код не найден }
-          '409': { description: Код уже был применён }
+          '409': { description: Код уже применён, срок применения истёк или владелец заблокирован }
 
     /api/me/orders:
       post:

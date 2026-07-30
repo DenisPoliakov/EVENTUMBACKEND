@@ -1,6 +1,11 @@
 import crypto from 'crypto'
 
+import { config } from '../config.js'
 import prisma from '../prisma.js'
+import {
+  extendPremiumSubscription,
+  getConfiguredPremiumPlan,
+} from './premium.js'
 
 const normalizeCode = (value) => String(value || '').trim().toUpperCase()
 
@@ -43,9 +48,28 @@ export const applyReferralCode = async (referredUserId, rawCode) => {
   const ownCode = await ensureReferralCode(referredUserId)
   if (!ownCode) return { status: 401, error: 'Unauthorized' }
   if (ownCode === code) return { status: 400, error: 'You cannot apply your own referral code' }
+  const plan =
+    config.referredBonusPremiumDays > 0
+      ? await getConfiguredPremiumPlan()
+      : null
 
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${referredUserId} FOR UPDATE`
+
+    const referred = await tx.user.findUnique({
+      where: { id: referredUserId },
+      select: { createdAt: true },
+    })
+    if (!referred) return { status: 401, error: 'Unauthorized' }
+    const applyDeadline = new Date(
+      referred.createdAt.getTime() + config.referralApplyWindowHours * 60 * 60 * 1000,
+    )
+    if (applyDeadline < new Date()) {
+      return {
+        status: 409,
+        error: `Referral code can only be applied within ${config.referralApplyWindowHours} hours after registration`,
+      }
+    }
 
     const existing = await tx.referralRedemption.findUnique({
       where: { referredUserId },
@@ -54,20 +78,89 @@ export const applyReferralCode = async (referredUserId, rawCode) => {
 
     const referrer = await tx.user.findFirst({
       where: { referralCode: { equals: code, mode: 'insensitive' } },
-      select: { id: true, referralCode: true },
+      select: {
+        id: true,
+        referralCode: true,
+        isBlocked: true,
+        blockedUntil: true,
+      },
     })
     if (!referrer) return { status: 404, error: 'Referral code not found' }
     if (referrer.id === referredUserId) {
       return { status: 400, error: 'You cannot apply your own referral code' }
     }
+    const referrerIsBlocked =
+      referrer.isBlocked &&
+      (!referrer.blockedUntil || referrer.blockedUntil > new Date())
+    if (referrerIsBlocked) {
+      return { status: 409, error: 'Referral code owner is blocked' }
+    }
 
-    const redemption = await tx.referralRedemption.create({
+    let redemption = await tx.referralRedemption.create({
       data: {
         referrerUserId: referrer.id,
         referredUserId,
         code: referrer.referralCode,
+        referrerRewardCents: config.referralRewardCents,
+        referredBonusDays: config.referredBonusPremiumDays,
       },
     })
-    return { status: 201, redemption }
+    let referrerAccount = null
+    if (config.referralRewardCents > 0) {
+      referrerAccount = await tx.premiumCreditAccount.upsert({
+        where: { userId: referrer.id },
+        update: {
+          balanceCents: { increment: config.referralRewardCents },
+          earnedCents: { increment: config.referralRewardCents },
+        },
+        create: {
+          userId: referrer.id,
+          balanceCents: config.referralRewardCents,
+          earnedCents: config.referralRewardCents,
+          currency: config.premiumCurrency,
+        },
+      })
+      await tx.premiumCreditTransaction.create({
+        data: {
+          userId: referrer.id,
+          type: 'REFERRAL_REWARD',
+          amountCents: config.referralRewardCents,
+          balanceAfterCents: referrerAccount.balanceCents,
+          currency: config.premiumCurrency,
+          idempotencyKey: `referral-reward:${redemption.id}`,
+          referralRedemptionId: redemption.id,
+          metadata: {
+            referredUserId,
+            code: referrer.referralCode,
+          },
+        },
+      })
+    }
+
+    let bonusSubscription = null
+    if (plan && config.referredBonusPremiumDays > 0) {
+      bonusSubscription = await extendPremiumSubscription({
+        client: tx,
+        userId: referredUserId,
+        planId: plan.id,
+        durationDays: config.referredBonusPremiumDays,
+        amountCents: 0,
+        currency: plan.currency,
+      })
+    }
+    redemption = await tx.referralRedemption.update({
+      where: { id: redemption.id },
+      data: {
+        rewardedAt: new Date(),
+        bonusSubscriptionId: bonusSubscription?.id || null,
+      },
+    })
+
+    return {
+      status: 201,
+      redemption,
+      referrerAccount,
+      bonusSubscription,
+    }
   })
 }

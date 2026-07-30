@@ -193,6 +193,13 @@ enum FriendshipStatus {
   REJECTED
 }
 
+enum PremiumCreditTransactionType {
+  REFERRAL_REWARD
+  PREMIUM_PURCHASE
+  ADMIN_ADJUSTMENT
+  REVERSAL
+}
+
 model City {
   id          String       @id @default(uuid())
   name        String       @unique
@@ -293,6 +300,7 @@ model User {
   referralCode            String?                  @unique
   referralRedemption      ReferralRedemption?      @relation("ReferredUser")
   referralRedemptions     ReferralRedemption[]     @relation("Referrer")
+  premiumCreditAccount    PremiumCreditAccount?
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 }
@@ -890,32 +898,33 @@ model UserSubscription {
 }
 
 model Order {
-  id                    String                  @id @default(uuid())
-  userId                String
-  user                  User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
-  planId                String?
-  plan                  MembershipPlan?         @relation(fields: [planId], references: [id], onDelete: Restrict)
-  premiumPlanId         String?
-  premiumPlan           AppPremiumPlan?         @relation(fields: [premiumPlanId], references: [id], onDelete: Restrict)
-  clubId                String?
-  club                  SportClub?              @relation(fields: [clubId], references: [id], onDelete: Restrict)
-  type                  OrderType               @default(MEMBERSHIP)
-  status                OrderStatus             @default(PENDING)
-  amountCents           Int
-  currency              String
-  durationDays          Int
-  idempotencyKey        String
-  requestFingerprint    String
-  subscriptionId        String?                 @unique
-  subscription          UserSubscription?       @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
-  premiumSubscriptionId String?                 @unique
-  premiumSubscription   AppPremiumSubscription? @relation(fields: [premiumSubscriptionId], references: [id], onDelete: Restrict)
-  payment               Payment?
-  paidAt                DateTime?
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  Sport                 Sport?                  @relation(fields: [sportId], references: [id])
-  sportId               String?
+  id                       String                    @id @default(uuid())
+  userId                   String
+  user                     User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  planId                   String?
+  plan                     MembershipPlan?           @relation(fields: [planId], references: [id], onDelete: Restrict)
+  premiumPlanId            String?
+  premiumPlan              AppPremiumPlan?           @relation(fields: [premiumPlanId], references: [id], onDelete: Restrict)
+  clubId                   String?
+  club                     SportClub?                @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  type                     OrderType                 @default(MEMBERSHIP)
+  status                   OrderStatus               @default(PENDING)
+  amountCents              Int
+  currency                 String
+  durationDays             Int
+  idempotencyKey           String
+  requestFingerprint       String
+  subscriptionId           String?                   @unique
+  subscription             UserSubscription?         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  premiumSubscriptionId    String?                   @unique
+  premiumSubscription      AppPremiumSubscription?   @relation(fields: [premiumSubscriptionId], references: [id], onDelete: Restrict)
+  payment                  Payment?
+  premiumCreditTransaction PremiumCreditTransaction?
+  paidAt                   DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  Sport                    Sport?                    @relation(fields: [sportId], references: [id])
+  sportId                  String?
 
   @@unique([userId, idempotencyKey])
   @@index([status, createdAt])
@@ -958,20 +967,21 @@ model AppPremiumPlan {
 }
 
 model AppPremiumSubscription {
-  id          String             @id @default(uuid())
-  userId      String
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planId      String
-  plan        AppPremiumPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
-  status      SubscriptionStatus @default(ACTIVE)
-  startsAt    DateTime
-  expiresAt   DateTime
-  paidAt      DateTime
-  amountCents Int
-  currency    String             @default("RUB")
-  order       Order?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id                      String              @id @default(uuid())
+  userId                  String
+  user                    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId                  String
+  plan                    AppPremiumPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status                  SubscriptionStatus  @default(ACTIVE)
+  startsAt                DateTime
+  expiresAt               DateTime
+  paidAt                  DateTime
+  amountCents             Int
+  currency                String              @default("RUB")
+  order                   Order?
+  referralBonusRedemption ReferralRedemption? @relation("ReferralBonusSubscription")
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
 
   @@index([userId, status, expiresAt])
   @@index([planId])
@@ -991,15 +1001,53 @@ model RefreshToken {
 }
 
 model ReferralRedemption {
-  id             String   @id @default(uuid())
-  referrerUserId String
-  referrer       User     @relation("Referrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
-  referredUserId String   @unique
-  referred       User     @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
-  code           String
-  createdAt      DateTime @default(now())
+  id                  String                    @id @default(uuid())
+  referrerUserId      String
+  referrer            User                      @relation("Referrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referredUserId      String                    @unique
+  referred            User                      @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  code                String
+  referrerRewardCents Int                       @default(0)
+  referredBonusDays   Int                       @default(0)
+  rewardedAt          DateTime?
+  bonusSubscriptionId String?                   @unique
+  bonusSubscription   AppPremiumSubscription?   @relation("ReferralBonusSubscription", fields: [bonusSubscriptionId], references: [id], onDelete: SetNull)
+  creditTransaction   PremiumCreditTransaction?
+  createdAt           DateTime                  @default(now())
 
   @@index([referrerUserId])
+}
+
+model PremiumCreditAccount {
+  userId       String                     @id
+  user         User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balanceCents Int                        @default(0)
+  earnedCents  Int                        @default(0)
+  spentCents   Int                        @default(0)
+  currency     String                     @default("RUB")
+  transactions PremiumCreditTransaction[]
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+}
+
+model PremiumCreditTransaction {
+  id                   String                       @id @default(uuid())
+  userId               String?
+  account              PremiumCreditAccount?        @relation(fields: [userId], references: [userId], onDelete: SetNull)
+  type                 PremiumCreditTransactionType
+  amountCents          Int
+  balanceAfterCents    Int
+  currency             String                       @default("RUB")
+  idempotencyKey       String                       @unique
+  referralRedemptionId String?                      @unique
+  referralRedemption   ReferralRedemption?          @relation(fields: [referralRedemptionId], references: [id], onDelete: SetNull)
+  orderId              String?                      @unique
+  order                Order?                       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  metadata             Json?
+  createdAt            DateTime                     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
 }
 
 model Friendship {
