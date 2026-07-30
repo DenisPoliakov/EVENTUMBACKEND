@@ -67,6 +67,20 @@ const yookassaShopId = process.env.YOOKASSA_SHOP_ID?.trim() || ''
 const yookassaSecretKey = process.env.YOOKASSA_SECRET_KEY?.trim() || ''
 const yookassaReturnUrl =
   process.env.YOOKASSA_RETURN_URL?.trim() || 'http://localhost:3000/payments/return'
+const nominatimBaseUrl =
+  process.env.NOMINATIM_BASE_URL?.trim() || 'https://nominatim.openstreetmap.org'
+const nominatimUserAgent =
+  process.env.NOMINATIM_USER_AGENT?.trim() ||
+  'EventumClubs/1.0 (https://github.com/DenisPoliakov/EVENTUMBACKEND)'
+
+try {
+  const url = new URL(nominatimBaseUrl)
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('unsupported protocol')
+  }
+} catch {
+  throw new Error('NOMINATIM_BASE_URL must be a valid HTTP(S) URL')
+}
 
 if (isProduction && jwtSecret.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters in production')
@@ -108,4 +122,12 @@ export const config = Object.freeze({
   ),
   pushExpiryWindowDays: parsePositiveInteger('PUSH_EXPIRY_WINDOW_DAYS', 7),
   pushExpiryBatchSize: parsePositiveInteger('PUSH_EXPIRY_BATCH_SIZE', 250),
+  nominatimBaseUrl,
+  nominatimUserAgent,
+  nominatimEmail: process.env.NOMINATIM_EMAIL?.trim() || '',
+  nominatimTimeoutMs: parsePositiveInteger('NOMINATIM_TIMEOUT_MS', 5000),
+  nominatimCacheTtlSeconds: parsePositiveInteger(
+    'NOMINATIM_CACHE_TTL_SECONDS',
+    24 * 60 * 60,
+  ),
 })

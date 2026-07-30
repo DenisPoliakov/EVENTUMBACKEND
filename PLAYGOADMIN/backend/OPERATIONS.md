@@ -25,6 +25,21 @@ instance for reliable realtime delivery. Before horizontal scaling, add shared
 pub/sub (for example Redis) so an event created on one instance reaches sockets
 connected to another. FCM and REST persistence remain durable fallback paths.
 
+## OpenStreetMap/Nominatim search
+
+`GET /api/search/places` combines local club name/address matches with forward
+geocoding from Nominatim. The default public OSMF endpoint has a strict
+application-wide maximum of one request per second, requires an identifying
+User-Agent, caching, and visible `© OpenStreetMap contributors` attribution.
+The backend serializes external requests and caches identical searches for 24
+hours. Clients must not call it as autocomplete on every keystroke.
+
+Configure `NOMINATIM_USER_AGENT` with an application name and contact URL;
+setting `NOMINATIM_EMAIL` is recommended for production. For meaningful traffic
+or multiple backend instances, use a commercial or self-hosted
+Nominatim-compatible endpoint via `NOMINATIM_BASE_URL` and replace the in-memory
+cache/rate limiter with shared infrastructure.
+
 ## Migration baseline and current drift
 
 Do not run `prisma migrate reset` against any shared or user database. Take a

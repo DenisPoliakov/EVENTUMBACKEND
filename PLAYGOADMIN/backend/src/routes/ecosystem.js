@@ -1,4 +1,5 @@
 import express from 'express'
+import { rateLimit } from 'express-rate-limit'
 import prisma from '../prisma.js'
 import { requireAuth } from '../middleware/requireAuth.js'
 import {
@@ -30,8 +31,16 @@ import {
   sortNewsWithFavoritesFirst,
 } from '../lib/personalization.js'
 import { broadcastToUser } from '../lib/chatRealtime.js'
+import { searchNominatimPlaces } from '../lib/nominatim.js'
 
 const router = express.Router()
+const placeSearchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many place searches; try again later' },
+})
 
 const daysFromNow = (days, start = new Date()) => {
   const result = new Date(start)
@@ -251,7 +260,13 @@ router.get('/clubs', async (req, res, next) => {
         cityId: req.query.cityId || undefined,
         tier: normalizeClubTier(req.query.tier, true) || undefined,
         city: city ? { name: { equals: city, mode: 'insensitive' } } : undefined,
-        name: nameQuery ? { contains: nameQuery, mode: 'insensitive' } : undefined,
+        OR: nameQuery
+          ? [
+              { name: { contains: nameQuery, mode: 'insensitive' } },
+              { address: { contains: nameQuery, mode: 'insensitive' } },
+              { city: { name: { contains: nameQuery, mode: 'insensitive' } } },
+            ]
+          : undefined,
         AND:
           age == null
             ? undefined
@@ -264,6 +279,93 @@ router.get('/clubs', async (req, res, next) => {
       include: clubInclude,
     })
     res.json(clubs.map(serializeClub))
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.get('/search/places', placeSearchLimiter, async (req, res, next) => {
+  try {
+    const query = String(req.query.q || '').trim()
+    if (query.length < 2) {
+      return res.status(400).json({ error: 'q must contain at least 2 characters' })
+    }
+
+    const cityId = String(req.query.cityId || '').trim()
+    let city = String(req.query.city || '').trim()
+    if (cityId) {
+      const cityRow = await prisma.city.findUnique({
+        where: { id: cityId },
+        select: { name: true },
+      })
+      if (!cityRow) return res.status(404).json({ error: 'City not found' })
+      city = cityRow.name
+    }
+    const limit = getLimitedValue(req.query.limit, 10, 25)
+    const externalLimit = getLimitedValue(req.query.externalLimit, 5, 10)
+    const includeExternal = req.query.external === undefined || toBoolean(req.query.external)
+    const clubsPromise = prisma.sportClub.findMany({
+      where: {
+        cityId: cityId || undefined,
+        city:
+          !cityId && city
+            ? { name: { equals: city, mode: 'insensitive' } }
+            : undefined,
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { address: { contains: query, mode: 'insensitive' } },
+          { city: { name: { contains: query, mode: 'insensitive' } } },
+        ],
+      },
+      orderBy: { name: 'asc' },
+      include: clubInclude,
+      take: limit,
+    })
+    const placesPromise = includeExternal
+      ? searchNominatimPlaces({
+          query,
+          city,
+          countryCodes: req.query.countryCodes || 'ru',
+          language: req.query.language || 'ru',
+          limit: externalLimit,
+        })
+      : Promise.resolve({
+          places: [],
+          attribution: {
+            text: '© OpenStreetMap contributors',
+            url: 'https://www.openstreetmap.org/copyright',
+          },
+          cached: false,
+        })
+
+    const [clubs, externalResult] = await Promise.all([
+      clubsPromise,
+      placesPromise.catch((error) => {
+        console.error('Nominatim place search failed:', error.message || error)
+        return {
+          places: [],
+          attribution: {
+            text: '© OpenStreetMap contributors',
+            url: 'https://www.openstreetmap.org/copyright',
+          },
+          cached: false,
+          unavailable: true,
+        }
+      }),
+    ])
+
+    return res.json({
+      query,
+      clubs: clubs.map(serializeClub),
+      places: externalResult.places,
+      externalStatus: includeExternal
+        ? externalResult.unavailable
+          ? 'UNAVAILABLE'
+          : 'OK'
+        : 'DISABLED',
+      externalCached: Boolean(externalResult.cached),
+      attribution: externalResult.attribution,
+    })
   } catch (err) {
     next(err)
   }
