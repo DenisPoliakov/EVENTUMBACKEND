@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent } from 'react'
 import dayjs from 'dayjs'
 
 import {
+  useClubs,
   useDeleteMutation,
   usePostMutation,
   usePutMutation,
@@ -11,6 +12,7 @@ import {
 } from '../api/hooks'
 import { api } from '../api/client'
 import Select from '../components/Select'
+import { slugify } from '../lib/slugify'
 import type { WellnessStory, WellnessStoryCategory } from '../types'
 
 const categoryOptions: Array<{
@@ -19,7 +21,7 @@ const categoryOptions: Array<{
 }> = [
   { value: 'nutrition', label: 'Питание' },
   { value: 'warmup', label: 'Разминка' },
-  { value: 'routine', label: 'Режим' },
+  { value: 'routine', label: 'Режим дня' },
   { value: 'workouts', label: 'Тренировки' },
   { value: 'balance', label: 'Баланс' },
 ]
@@ -36,8 +38,9 @@ const emptyForm = () => ({
   coverImageUrl: '',
   readMinutes: '3',
   sortOrder: '0',
-  publishedAt: '',
+  publishedAt: dayjs().format('YYYY-MM-DDTHH:mm'),
   isActive: 'true',
+  authorClubId: '',
 })
 
 const toAbsoluteMediaUrl = (url: string) => {
@@ -50,6 +53,7 @@ const toAbsoluteMediaUrl = (url: string) => {
 
 function WellnessStoriesPage() {
   const { data: stories, isLoading } = useWellnessStories()
+  const { data: clubs } = useClubs({})
   const createStory = usePostMutation('/wellness-stories', [
     'wellness-stories',
   ])
@@ -68,6 +72,9 @@ function WellnessStoriesPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const [slugTouched, setSlugTouched] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [importJson, setImportJson] = useState('')
   const [importResult, setImportResult] = useState('')
@@ -88,8 +95,20 @@ function WellnessStoriesPage() {
   const resetForm = () => {
     setEditingId(null)
     setForm(emptyForm())
+    setSlugTouched(false)
     setCoverFile(null)
     setError('')
+  }
+
+  const handleTitleChange = (title: string) => {
+    setForm((current) => ({
+      ...current,
+      title,
+      slug:
+        !editingId && !slugTouched
+          ? slugify(title, 'story')
+          : current.slug,
+    }))
   }
 
   const handleCoverChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -112,11 +131,13 @@ function WellnessStoriesPage() {
         updated: number
       }
       setImportResult(
-        `Импорт завершён: создано ${result.created}, обновлено ${result.updated}`,
+        `Готово: добавлено ${result.created}, обновлено ${result.updated}`,
       )
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : 'Не удалось импортировать JSON',
+        caught instanceof Error
+          ? caught.message
+          : 'Не удалось импортировать файл',
       )
     }
   }
@@ -126,21 +147,23 @@ function WellnessStoriesPage() {
     setError('')
 
     if (!form.title.trim() || !form.body.trim()) {
-      setError('Заполните заголовок и текст истории')
+      setError('Нужны заголовок и текст истории')
       return
     }
 
     const payload = {
-      slug: form.slug.trim() || null,
+      slug: form.slug.trim() || slugify(form.title, 'story'),
       title: form.title.trim(),
       body: form.body.trim(),
       category: form.category,
       coverImageUrl: form.coverImageUrl || null,
-      readMinutes: Number(form.readMinutes),
-      sortOrder: Number(form.sortOrder),
+      readMinutes: Number(form.readMinutes) || 3,
+      sortOrder: Number(form.sortOrder) || 0,
       locale: 'ru',
       publishedAt: form.publishedAt || undefined,
       isActive: form.isActive === 'true',
+      authorClubId: form.authorClubId || null,
+      authorType: form.authorClubId ? 'club' : 'platform',
     }
 
     try {
@@ -163,7 +186,7 @@ function WellnessStoriesPage() {
       setError(
         caught instanceof Error
           ? caught.message
-          : 'Не удалось сохранить Wellness-историю',
+          : 'Не удалось сохранить историю',
       )
     }
   }
@@ -171,6 +194,8 @@ function WellnessStoriesPage() {
   const startEditing = (story: WellnessStory) => {
     setEditingId(story.id)
     setCoverFile(null)
+    setSlugTouched(true)
+    setShowAdvanced(true)
     setError('')
     setForm({
       slug: story.slug || '',
@@ -184,6 +209,7 @@ function WellnessStoriesPage() {
         ? dayjs(story.publishedAt).format('YYYY-MM-DDTHH:mm')
         : '',
       isActive: story.isActive ? 'true' : 'false',
+      authorClubId: story.authorClubId || '',
     })
   }
 
@@ -196,7 +222,7 @@ function WellnessStoriesPage() {
       setError(
         caught instanceof Error
           ? caught.message
-          : 'Не удалось удалить Wellness-историю',
+          : 'Не удалось удалить историю',
       )
     }
   }
@@ -210,70 +236,75 @@ function WellnessStoriesPage() {
     <div>
       <div className="section-header">
         <div>
-          <div className="small-label">Контент</div>
-          <h2 style={{ margin: '4px 0 0' }}>Wellness-истории</h2>
+          <div className="small-label">EVENTUM CLUBS</div>
+          <h2 style={{ margin: '4px 0 0' }}>Истории для приложения</h2>
+          <p className="page-intro">
+            Это короткие материалы во вкладке Wellness: заголовок, текст и
+            картинка. Сначала заполните обычные поля — техническое можно не
+            трогать.
+          </p>
         </div>
+        <button
+          className="button button-muted"
+          type="button"
+          onClick={() => setShowImport((value) => !value)}
+        >
+          {showImport ? 'Скрыть импорт' : 'Массовый импорт'}
+        </button>
       </div>
 
-      <div className="panel">
-        <div className="form-section-title">Импорт русских историй по slug</div>
-        <p style={{ marginTop: 6 }}>
-          Вставьте JSON-массив историй или объект <code>{`{"stories": [...]}`}</code>.
-          Все записи проверяются до транзакционного импорта.
-        </p>
-        <textarea
-          className="textarea"
-          rows={6}
-          value={importJson}
-          placeholder='[{"slug":"recovery-basics","title":"...","body":"...","category":"routine"}]'
-          onChange={(event) => setImportJson(event.target.value)}
-        />
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <input
-            className="input"
-            type="file"
-            accept="application/json,.json"
-            onChange={handleImportFile}
+      {showImport ? (
+        <div className="panel">
+          <div className="form-section-title">Массовый импорт</div>
+          <p className="field-hint">
+            Для разработчика или контент-менеджера с готовым JSON-файлом.
+            Обычному редактору это не нужно.
+          </p>
+          <textarea
+            className="textarea"
+            rows={5}
+            value={importJson}
+            placeholder="Вставьте JSON или выберите файл ниже"
+            onChange={(event) => setImportJson(event.target.value)}
           />
-          <button
-            className="button"
-            type="button"
-            disabled={!importJson.trim() || importStories.isPending}
-            onClick={handleImport}
-          >
-            {importStories.isPending ? 'Импорт...' : 'Импортировать'}
-          </button>
-        </div>
-        {importResult ? (
-          <div style={{ marginTop: 10, color: '#86efac' }}>{importResult}</div>
-        ) : null}
-      </div>
-
-      <div className="panel" style={{ marginTop: 16 }}>
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <div>
-            <div className="form-section-title">Slug (опционально)</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <input
               className="input"
-              value={form.slug}
-              placeholder="recovery-basics"
-              onChange={(event) =>
-                setForm({ ...form, slug: event.target.value })
-              }
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportFile}
             />
+            <button
+              className="button"
+              type="button"
+              disabled={!importJson.trim() || importStories.isPending}
+              onClick={handleImport}
+            >
+              {importStories.isPending ? 'Импорт...' : 'Импортировать'}
+            </button>
           </div>
-          <div>
+          {importResult ? (
+            <div style={{ marginTop: 10, color: '#86efac' }}>{importResult}</div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="panel" style={{ marginTop: 16 }}>
+        <div className="form-section-title">
+          {editingId ? 'Редактирование истории' : 'Новая история'}
+        </div>
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <div style={{ gridColumn: '1 / -1' }}>
             <div className="form-section-title">Заголовок</div>
             <input
               className="input"
               value={form.title}
-              onChange={(event) =>
-                setForm({ ...form, title: event.target.value })
-              }
+              placeholder="Например: Как восстановиться после тренировки"
+              onChange={(event) => handleTitleChange(event.target.value)}
             />
           </div>
           <div>
-            <div className="form-section-title">Категория</div>
+            <div className="form-section-title">Тема</div>
             <Select
               value={form.category}
               onChange={(category) =>
@@ -285,9 +316,10 @@ function WellnessStoriesPage() {
               options={categoryOptions}
               fullWidth
             />
+            <p className="field-hint">По теме история попадёт в нужный раздел.</p>
           </div>
           <div>
-            <div className="form-section-title">Время чтения, мин.</div>
+            <div className="form-section-title">Сколько минут читать</div>
             <input
               className="input"
               type="number"
@@ -300,45 +332,39 @@ function WellnessStoriesPage() {
             />
           </div>
           <div>
-            <div className="form-section-title">Порядок</div>
-            <input
-              className="input"
-              type="number"
-              value={form.sortOrder}
-              onChange={(event) =>
-                setForm({ ...form, sortOrder: event.target.value })
-              }
-            />
-          </div>
-          <div>
-            <div className="form-section-title">Дата публикации</div>
-            <input
-              className="datetime"
-              type="datetime-local"
-              value={form.publishedAt}
-              onChange={(event) =>
-                setForm({ ...form, publishedAt: event.target.value })
-              }
-            />
-          </div>
-          <div>
-            <div className="form-section-title">Активна</div>
+            <div className="form-section-title">Показывать в приложении</div>
             <Select
               value={form.isActive}
               onChange={(isActive) => setForm({ ...form, isActive })}
               options={[
-                { value: 'true', label: 'Да' },
-                { value: 'false', label: 'Нет' },
+                { value: 'true', label: 'Да, опубликовать' },
+                { value: 'false', label: 'Нет, скрыть' },
               ]}
               fullWidth
             />
           </div>
+          <div>
+            <div className="form-section-title">От имени клуба</div>
+            <Select
+              fullWidth
+              value={form.authorClubId}
+              onChange={(authorClubId) => setForm({ ...form, authorClubId })}
+              options={[
+                { value: '', label: 'Платформа Eventum' },
+                ...(clubs || []).map((club) => ({
+                  value: club.id,
+                  label: club.name,
+                })),
+              ]}
+            />
+          </div>
           <div style={{ gridColumn: '1 / -1' }}>
-            <div className="form-section-title">Текст истории</div>
+            <div className="form-section-title">Текст</div>
             <textarea
               className="textarea"
-              rows={7}
+              rows={8}
               value={form.body}
+              placeholder="Напишите историю простым языком — как совет для пользователя."
               onChange={(event) =>
                 setForm({ ...form, body: event.target.value })
               }
@@ -352,29 +378,83 @@ function WellnessStoriesPage() {
               accept="image/jpeg,image/png,image/webp,image/gif"
               onChange={handleCoverChange}
             />
+            <p className="field-hint">
+              Лучше горизонтальная картинка. Форматы: JPG, PNG, WebP или GIF до
+              5 МБ.
+            </p>
             {previewUrl ? (
               <img
                 src={previewUrl}
                 alt="Предпросмотр обложки"
+                className="content-card-media"
                 style={{
-                  width: 240,
-                  height: 140,
-                  objectFit: 'cover',
+                  width: 280,
                   borderRadius: 12,
                   marginTop: 10,
                 }}
               />
             ) : null}
           </div>
-          {error ? (
-            <div
-              style={{
-                gridColumn: '1 / -1',
-                color: '#fca5a5',
-              }}
+
+          <div className="advanced-block">
+            <button
+              className="advanced-toggle"
+              type="button"
+              onClick={() => setShowAdvanced((value) => !value)}
             >
-              {error}
-            </div>
+              {showAdvanced
+                ? 'Скрыть дополнительные настройки'
+                : 'Показать дополнительные настройки'}
+            </button>
+            {showAdvanced ? (
+              <div className="form-grid" style={{ marginTop: 12 }}>
+                <div>
+                  <div className="form-section-title">Технический код</div>
+                  <input
+                    className="input"
+                    value={form.slug}
+                    placeholder="recovery-basics"
+                    onChange={(event) => {
+                      setSlugTouched(true)
+                      setForm({ ...form, slug: event.target.value })
+                    }}
+                  />
+                  <p className="field-hint">
+                    Нужен приложению для ссылок. Обычно создаётся сам из
+                    заголовка.
+                  </p>
+                </div>
+                <div>
+                  <div className="form-section-title">Порядок в ленте</div>
+                  <input
+                    className="input"
+                    type="number"
+                    value={form.sortOrder}
+                    onChange={(event) =>
+                      setForm({ ...form, sortOrder: event.target.value })
+                    }
+                  />
+                  <p className="field-hint">
+                    Чем меньше число, тем раньше история в списке.
+                  </p>
+                </div>
+                <div>
+                  <div className="form-section-title">Дата публикации</div>
+                  <input
+                    className="datetime"
+                    type="datetime-local"
+                    value={form.publishedAt}
+                    onChange={(event) =>
+                      setForm({ ...form, publishedAt: event.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {error ? (
+            <div style={{ gridColumn: '1 / -1', color: '#fca5a5' }}>{error}</div>
           ) : null}
           <div
             style={{
@@ -388,7 +468,7 @@ function WellnessStoriesPage() {
               {isSaving
                 ? 'Сохранение...'
                 : editingId
-                  ? 'Сохранить изменения'
+                  ? 'Сохранить'
                   : 'Добавить историю'}
             </button>
             {editingId ? (
@@ -405,58 +485,53 @@ function WellnessStoriesPage() {
       </div>
 
       <div className="panel" style={{ marginTop: 16 }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>История</th>
-              <th>Slug</th>
-              <th>Категория</th>
-              <th>Статус</th>
-              <th>Порядок</th>
-              <th>Дата</th>
-              <th>Просмотрели (уник.)</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {stories?.map((story) => (
-              <tr key={story.id}>
-                <td>{story.title}</td>
-                <td>{story.slug || '—'}</td>
-                <td>{categoryLabels[story.category]}</td>
-                <td>{story.isActive ? 'Активна' : 'Скрыта'}</td>
-                <td>{story.sortOrder}</td>
-                <td>
-                  {dayjs(story.publishedAt).format('DD.MM.YYYY HH:mm')}
-                </td>
-                <td>{story.uniqueViewerCount}</td>
-                <td className="text-right">
-                  <div className="table-actions">
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={() => startEditing(story)}
-                    >
-                      Редактировать
-                    </button>
-                    <button
-                      className="button button-danger"
-                      type="button"
-                      onClick={() => handleDelete(story)}
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!isLoading && stories?.length === 0 ? (
-              <tr>
-                <td colSpan={8}>Историй пока нет</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+        <div className="form-section-title">Уже опубликованные</div>
+        {isLoading ? <p className="field-hint">Загрузка...</p> : null}
+        {!isLoading && stories?.length === 0 ? (
+          <p className="field-hint">Пока пусто — добавьте первую историю выше.</p>
+        ) : null}
+        <div className="content-card-grid" style={{ marginTop: 12 }}>
+          {stories?.map((story) => (
+            <article key={story.id} className="content-card">
+              {story.coverImageUrl ? (
+                <img
+                  className="content-card-media"
+                  src={toAbsoluteMediaUrl(story.coverImageUrl)}
+                  alt=""
+                />
+              ) : (
+                <div className="content-card-media" />
+              )}
+              <div className="content-card-body">
+                <h3 className="content-card-title">{story.title}</h3>
+                <div className="content-card-meta">
+                  {categoryLabels[story.category]} · {story.readMinutes} мин ·{' '}
+                  {story.isActive ? 'видна' : 'скрыта'}
+                </div>
+                <div className="content-card-meta">
+                  Просмотрели: {story.uniqueViewerCount} ·{' '}
+                  {dayjs(story.publishedAt).format('DD.MM.YYYY')}
+                </div>
+                <div className="table-actions" style={{ marginTop: 'auto' }}>
+                  <button
+                    className="button"
+                    type="button"
+                    onClick={() => startEditing(story)}
+                  >
+                    Изменить
+                  </button>
+                  <button
+                    className="button button-danger"
+                    type="button"
+                    onClick={() => handleDelete(story)}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
     </div>
   )

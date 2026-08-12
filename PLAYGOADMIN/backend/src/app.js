@@ -13,6 +13,7 @@ import adminOrdersRouter from './routes/adminOrders.js'
 import adminPremiumRouter from './routes/adminPremium.js'
 import adminPushCampaignsRouter from './routes/adminPushCampaigns.js'
 import adminSupportRouter from './routes/adminSupport.js'
+import adminCoachClubLinksRouter from './routes/adminCoachClubLinks.js'
 import adminWorkoutAnalyticsRouter from './routes/adminWorkoutAnalytics.js'
 import aiMatchHistoryRouter from './routes/aiMatchHistory.js'
 import bookingsRouter from './routes/bookings.js'
@@ -41,6 +42,7 @@ import uploadRouter from './routes/uploads.js'
 import userRouter from './routes/users.js'
 import wellnessStoriesRouter from './routes/wellnessStories.js'
 import wellnessStoriesPublicRouter from './routes/wellnessStoriesPublic.js'
+import wellnessStoriesMeRouter from './routes/wellnessStoriesMe.js'
 import workoutProgramsRouter from './routes/workoutPrograms.js'
 import workoutProgramsPublicRouter from './routes/workoutProgramsPublic.js'
 import workoutSessionsRouter from './routes/workoutSessions.js'
@@ -94,6 +96,7 @@ export const createApp = () => {
   app.use('/api', friendsRouter)
   app.use('/api', ecosystemRouter)
   app.use('/api', wellnessStoriesPublicRouter)
+  app.use('/api', wellnessStoriesMeRouter)
   app.use('/api', workoutProgramsPublicRouter)
   app.use('/api', workoutSessionsRouter)
   app.use('/api', bookingsRouter)
@@ -150,6 +153,7 @@ export const createApp = () => {
   app.use('/api/admin/workout-analytics', adminWorkoutAnalyticsRouter)
   app.use('/api/admin/push-campaigns', adminPushCampaignsRouter)
   app.use('/api/admin/support', adminSupportRouter)
+  app.use('/api/admin/coach-club-link-requests', adminCoachClubLinksRouter)
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Not found' })

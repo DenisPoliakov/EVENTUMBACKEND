@@ -18,6 +18,26 @@ export const getConfiguredPremiumPlan = (client = prisma) =>
     },
   })
 
+export const findActivePremiumSubscription = (
+  userId,
+  client = prisma,
+  now = new Date(),
+) =>
+  client.appPremiumSubscription.findFirst({
+    where: {
+      userId,
+      status: 'ACTIVE',
+      expiresAt: { gt: now },
+    },
+    orderBy: { expiresAt: 'desc' },
+  })
+
+export const userHasActivePremium = async (
+  userId,
+  client = prisma,
+  now = new Date(),
+) => Boolean(await findActivePremiumSubscription(userId, client, now))
+
 export const extendPremiumSubscription = async ({
   client,
   userId,

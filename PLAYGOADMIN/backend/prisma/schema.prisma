@@ -93,6 +93,14 @@ enum UserNotificationType {
   BOOKING_CONFIRMED
   SUBSCRIPTION_EXPIRING
   MANUAL_CAMPAIGN
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+}
+
+enum WellnessStoryAuthorType {
+  PLATFORM
+  COACH
+  CLUB
 }
 
 enum PushPlatform {
@@ -153,6 +161,7 @@ enum SubscriptionStatus {
 enum OrderType {
   MEMBERSHIP
   PREMIUM
+  TRIAL
 }
 
 enum OrderStatus {
@@ -174,6 +183,13 @@ enum ClubTier {
   BRONZE
   SILVER
   GOLD
+}
+
+enum CoachClubLinkRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum TrainingBookingStatus {
@@ -260,6 +276,7 @@ model User {
   name                    String
   firstName               String?
   lastName                String?
+  birthDate               DateTime?
   passwordHash            String
   role                    Role                     @default(USER)
   cityId                  String?
@@ -289,6 +306,7 @@ model User {
   friendshipsRequested    Friendship[]             @relation("FriendshipRequester")
   friendshipsReceived     Friendship[]             @relation("FriendshipAddressee")
   wellnessStoryViews      WellnessStoryView[]
+  authoredWellnessStories WellnessStory[]          @relation("WellnessStoryAuthor")
   workoutProgramViews     WorkoutProgramView[]
   workoutSessions         WorkoutSession[]
   newsViews               NewsView[]
@@ -421,24 +439,35 @@ model News {
 }
 
 model WellnessStory {
-  id            String                @id @default(uuid())
-  slug          String?               @unique
-  title         String
-  body          String
-  category      WellnessStoryCategory
-  coverImageUrl String?
-  readMinutes   Int                   @default(3)
-  sortOrder     Int                   @default(0)
-  locale        String                @default("ru")
-  publishedAt   DateTime              @default(now())
-  isActive      Boolean               @default(true)
-  deletedAt     DateTime?
-  views         WellnessStoryView[]
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  id             String                  @id @default(uuid())
+  slug           String?                 @unique
+  title          String
+  body           String
+  category       WellnessStoryCategory
+  coverImageUrl  String?
+  readMinutes    Int                     @default(3)
+  sortOrder      Int                     @default(0)
+  locale         String                  @default("ru")
+  publishedAt    DateTime                @default(now())
+  isActive       Boolean                 @default(true)
+  deletedAt      DateTime?
+  authorType     WellnessStoryAuthorType @default(PLATFORM)
+  authorUserId   String?
+  authorUser     User?                   @relation("WellnessStoryAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  authorClubId   String?
+  authorClub     SportClub?              @relation(fields: [authorClubId], references: [id], onDelete: SetNull)
+  coachProfileId String?
+  coachProfile   CoachProfile?           @relation(fields: [coachProfileId], references: [id], onDelete: SetNull)
+  views          WellnessStoryView[]
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
 
   @@index([locale, isActive, deletedAt, sortOrder])
   @@index([publishedAt])
+  @@index([authorType])
+  @@index([authorUserId])
+  @@index([authorClubId])
+  @@index([coachProfileId])
 }
 
 model WellnessStoryView {
@@ -592,7 +621,9 @@ model SportClub {
   maxAge        Int?
   coaches       String[]
   coachProfiles CoachProfile[]
+  coachClubLinkRequests CoachClubLinkRequest[]
   news          News[]
+  wellnessStories WellnessStory[]
   schedules     ClubSchedule[]
   plans         MembershipPlan[]
   subscriptions UserSubscription[]
@@ -625,10 +656,29 @@ model CoachProfile {
   telegramUrl     String?
   schedules       ClubSchedule[]
   bookings        TrainingBooking[]
+  wellnessStories WellnessStory[]
+  clubLinkRequests CoachClubLinkRequest[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
   @@index([clubId])
+}
+
+model CoachClubLinkRequest {
+  id             String                     @id @default(uuid())
+  coachProfileId String
+  coachProfile   CoachProfile               @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  clubId         String
+  club           SportClub                  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  status         CoachClubLinkRequestStatus @default(PENDING)
+  note           String?
+  reviewedAt     DateTime?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@index([coachProfileId, status])
+  @@index([clubId, status])
+  @@index([status, createdAt])
 }
 
 model FavoriteClub {
@@ -814,6 +864,7 @@ model ClubSchedule {
   priceCents     Int               @default(50000)
   note           String?
   bookings       TrainingBooking[]
+  orders         Order[]
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
@@ -861,6 +912,8 @@ model TrainingBooking {
   platformFeeCents Int
   currency         String                @default("RUB")
   status           TrainingBookingStatus @default(PENDING)
+  orderId          String?               @unique
+  order            Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -907,6 +960,9 @@ model Order {
   premiumPlan              AppPremiumPlan?           @relation(fields: [premiumPlanId], references: [id], onDelete: Restrict)
   clubId                   String?
   club                     SportClub?                @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  scheduleEntryId          String?
+  scheduleEntry            ClubSchedule?             @relation(fields: [scheduleEntryId], references: [id], onDelete: SetNull)
+  scheduledAt              DateTime?
   type                     OrderType                 @default(MEMBERSHIP)
   status                   OrderStatus               @default(PENDING)
   amountCents              Int
@@ -918,6 +974,7 @@ model Order {
   subscription             UserSubscription?         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
   premiumSubscriptionId    String?                   @unique
   premiumSubscription      AppPremiumSubscription?   @relation(fields: [premiumSubscriptionId], references: [id], onDelete: Restrict)
+  booking                  TrainingBooking?
   payment                  Payment?
   premiumCreditTransaction PremiumCreditTransaction?
   paidAt                   DateTime?
@@ -931,6 +988,7 @@ model Order {
   @@index([clubId])
   @@index([planId])
   @@index([premiumPlanId])
+  @@index([scheduleEntryId])
 }
 
 model Payment {

@@ -13,10 +13,11 @@ import type { MembershipPlan } from '../types'
 
 function SubscriptionPlansPage() {
   const { data: sports } = useSports()
-  const [filters, setFilters] = useState({ sportId: '', clubId: '' })
-  const { data: clubs } = useClubs({ sportId: filters.sportId || undefined })
+  const boxingSportId = sports?.find((sport) => sport.code === 'BOXING')?.id || ''
+  const [filters, setFilters] = useState({ clubId: '' })
+  const { data: clubs } = useClubs({ sportCode: 'BOXING' })
   const { data: plans } = useSubscriptionPlans({
-    sportId: filters.sportId || undefined,
+    sportId: boxingSportId || undefined,
     clubId: filters.clubId || undefined,
   })
   const createPlan = usePostMutation('/subscription-plans', ['subscription-plans'])
@@ -35,13 +36,12 @@ function SubscriptionPlansPage() {
     isActive: 'true',
   })
 
-  const sportOptions = useMemo(() => [{ value: '', label: 'Все виды спорта' }, ...(sports || []).map((s) => ({ value: s.id, label: s.name }))], [sports])
   const clubOptions = useMemo(() => [{ value: '', label: 'Все клубы' }, ...(clubs || []).map((c) => ({ value: c.id, label: c.name }))], [clubs])
 
   const reset = () => {
     setEditingId(null)
     setForm({
-      sportId: '',
+      sportId: boxingSportId,
       clubId: '',
       tier: '',
       title: '',
@@ -55,9 +55,9 @@ function SubscriptionPlansPage() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.sportId || !form.title.trim()) return
+    if (!boxingSportId || !form.title.trim()) return
     const payload = {
-      sportId: form.sportId,
+      sportId: boxingSportId,
       clubId: form.clubId || undefined,
       tier: form.tier || undefined,
       title: form.title,
@@ -76,13 +76,10 @@ function SubscriptionPlansPage() {
     <div>
       <div className="section-header">
         <div>
-          <div className="small-label">Экосистема</div>
+          <div className="small-label">EVENTUM CLUBS</div>
           <h2 style={{ margin: '4px 0 0' }}>Абонементы</h2>
         </div>
         <div className="actions-row">
-          <div style={{ minWidth: 200 }}>
-            <Select value={filters.sportId} onChange={(sportId) => setFilters({ sportId, clubId: '' })} options={sportOptions} />
-          </div>
           <div style={{ minWidth: 220 }}>
             <Select value={filters.clubId} onChange={(clubId) => setFilters({ ...filters, clubId })} options={clubOptions} />
           </div>
@@ -92,12 +89,12 @@ function SubscriptionPlansPage() {
       <div className="panel">
         <form className="form-grid" onSubmit={submit}>
           <div>
-            <div className="form-section-title">Вид спорта</div>
-            <Select value={form.sportId} onChange={(sportId) => setForm({ ...form, sportId, clubId: '' })} options={[{ value: '', label: 'Выберите' }, ...(sports || []).map((s) => ({ value: s.id, label: s.name }))]} />
+            <div className="form-section-title">Сервис</div>
+            <input className="input" value="EVENTUM CLUBS · Бокс" disabled />
           </div>
           <div>
             <div className="form-section-title">Клуб/зал</div>
-            <Select value={form.clubId} onChange={(clubId) => setForm({ ...form, clubId })} options={[{ value: '', label: 'Для всего вида спорта' }, ...((clubs || []).filter((c) => !form.sportId || c.sportId === form.sportId).map((c) => ({ value: c.id, label: c.name })))]} />
+            <Select value={form.clubId} onChange={(clubId) => setForm({ ...form, clubId })} options={[{ value: '', label: 'Для всех клубов' }, ...(clubs || []).map((c) => ({ value: c.id, label: c.name }))]} />
           </div>
           <div>
             <div className="form-section-title">Название</div>

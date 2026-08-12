@@ -71,12 +71,16 @@ export const validateNewsPayload = (body, { partial = false } = {}) => {
     data.type = normalized
   }
 
-  if (Object.hasOwn(body, 'clubId')) {
-    const clubId = String(body.clubId ?? '').trim()
-    if (clubId.length > 120) {
-      return { error: 'clubId must be at most 120 characters' }
-    }
-    data.clubId = clubId || null
+  // TEMP: привязка новостей к клубу отключена — раскомментировать блок ниже, чтобы вернуть.
+  // if (Object.hasOwn(body, 'clubId')) {
+  //   const clubId = String(body.clubId ?? '').trim()
+  //   if (clubId.length > 120) {
+  //     return { error: 'clubId must be at most 120 characters' }
+  //   }
+  //   data.clubId = clubId || null
+  // }
+  if (Object.hasOwn(body, 'clubId') || !partial) {
+    data.clubId = null
   }
 
   if (Object.hasOwn(body, 'publishedAt')) {
@@ -125,13 +129,15 @@ export async function createNews({
     })
 
     if (favorites.length) {
+      const preview =
+        news.body.length > 140 ? `${news.body.slice(0, 137).trim()}…` : news.body
       await Promise.all(
         favorites.map((favorite) =>
           createNotificationWithPush({
             userId: favorite.userId,
             type: 'FAVORITE_CLUB_NEWS',
             title: news.title,
-            body: news.body,
+            body: preview,
             imageUrl: news.imageUrl || null,
             clubId: news.clubId,
             newsId: news.id,

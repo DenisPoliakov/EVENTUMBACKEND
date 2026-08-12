@@ -3,8 +3,11 @@ import dayjs from 'dayjs'
 import { useCities, usePatchMutation, useUsers } from '../api/hooks'
 import type { User } from '../types'
 import Select from '../components/Select'
+import { useAdminProduct } from '../productContext'
 
 function UsersPage() {
+  const product = useAdminProduct()
+  const isFootball = product === 'FOOTBALL'
   const { data: cities } = useCities()
   const [q, setQ] = useState('')
   const [cityId, setCityId] = useState('')
@@ -17,15 +20,27 @@ function UsersPage() {
       q: q.trim() || undefined,
       cityId: cityId || undefined,
       role: role || undefined,
-      blocked: blocked || undefined,
+      blocked:
+        !isFootball && blocked === 'registration_ban'
+          ? undefined
+          : blocked || undefined,
     }),
-    [q, cityId, role, blocked]
+    [q, cityId, role, blocked, isFootball]
   )
 
   const { data: users } = useUsers(filters)
   const moderateUser = usePatchMutation((payload) => `/users/${payload.id}/moderation`, [['users', filters]])
 
   const selectedUser = users?.find((user) => user.id === selectedUserId) || users?.[0] || null
+
+  const statusOptions = [
+    { value: '', label: 'Любой статус' },
+    { value: 'active', label: 'Платформенно заблокирован' },
+    ...(isFootball
+      ? [{ value: 'registration_ban', label: 'Бан на заявки (Football)' }]
+      : []),
+    { value: 'inactive', label: 'Без ограничений' },
+  ]
 
   return (
     <div>
@@ -67,15 +82,10 @@ function UsersPage() {
           </div>
           <div style={{ minWidth: 220 }}>
             <Select
-              value={blocked}
+              value={!isFootball && blocked === 'registration_ban' ? '' : blocked}
               onChange={setBlocked}
               placeholder="Любой статус"
-              options={[
-                { value: '', label: 'Любой статус' },
-                { value: 'active', label: 'Платформенно заблокирован' },
-                { value: 'registration_ban', label: 'Бан на заявки' },
-                { value: 'inactive', label: 'Без ограничений' },
-              ]}
+              options={statusOptions}
             />
           </div>
         </div>
@@ -95,7 +105,7 @@ function UsersPage() {
             <tbody>
               {users?.map((user) => {
                 const platformBlocked = isPlatformBlocked(user)
-                const matchBan = isMatchBanned(user)
+                const matchBan = isFootball && isMatchBanned(user)
                 return (
                   <tr
                     key={user.id}
@@ -130,6 +140,7 @@ function UsersPage() {
             <UserModerationCard
               key={selectedUser.id}
               user={selectedUser}
+              isFootball={isFootball}
               isSaving={moderateUser.isPending}
               onSave={(payload) => moderateUser.mutate({ id: selectedUser.id, ...payload })}
             />
@@ -144,10 +155,12 @@ function UsersPage() {
 
 function UserModerationCard({
   user,
+  isFootball,
   isSaving,
   onSave,
 }: {
   user: User
+  isFootball: boolean
   isSaving: boolean
   onSave: (payload: {
     username?: string
@@ -170,7 +183,7 @@ function UserModerationCard({
       isBlocked,
       blockReason: blockReason.trim(),
       blockedUntil: blockedUntil || null,
-      matchBanUntil: matchBanUntil || null,
+      ...(isFootball ? { matchBanUntil: matchBanUntil || null } : {}),
     })
 
   const setPlatformBlock = (mode: '7d' | '30d' | 'forever' | 'off') => {
@@ -198,6 +211,7 @@ function UserModerationCard({
   }
 
   const setRegistrationBan = (mode: '7d' | '30d' | 'forever' | 'off') => {
+    if (!isFootball) return
     if (mode === 'off') {
       setMatchBanUntil('')
       onSave({
@@ -231,8 +245,12 @@ function UserModerationCard({
         <div className="small-label">Роль: {user.role}</div>
         <div className="small-label">Зарегистрирован: {formatDate(user.createdAt)}</div>
         <div className="small-label">Обновлен: {formatDate(user.updatedAt)}</div>
-        <div className="small-label">Команд: {user.memberships?.length ?? 0}</div>
-        <div className="small-label">Капитан: {user.captainedTeams?.length ?? 0}</div>
+        {isFootball && (
+          <>
+            <div className="small-label">Команд: {user.memberships?.length ?? 0}</div>
+            <div className="small-label">Капитан: {user.captainedTeams?.length ?? 0}</div>
+          </>
+        )}
         <div className="small-label">Реферальный код: {user.referralCode || 'ещё не создан'}</div>
         <div className="small-label">Приглашено: {user._count?.referralRedemptions ?? 0}</div>
         <div className="small-label">
@@ -244,9 +262,11 @@ function UserModerationCard({
           <span className="badge" style={{ background: platformBlocked ? '#ef4444' : '#e5e7eb', color: platformBlocked ? '#fff' : '#111827' }}>
             {platformBlocked ? `Блок${blockedUntil ? ` до ${formatDate(blockedUntil)}` : ' навсегда'}` : 'Без платформенного блока'}
           </span>
-          <span className="badge" style={{ background: registrationBan ? '#f59e0b' : '#e5e7eb', color: '#111827' }}>
-            {registrationBan ? `Бан заявок до ${formatDate(matchBanUntil)}` : 'Заявки разрешены'}
-          </span>
+          {isFootball && (
+            <span className="badge" style={{ background: registrationBan ? '#f59e0b' : '#e5e7eb', color: '#111827' }}>
+              {registrationBan ? `Бан заявок до ${formatDate(matchBanUntil)}` : 'Заявки разрешены'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -283,23 +303,25 @@ function UserModerationCard({
         <textarea className="textarea" rows={3} value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="Например: оскорбления, спам, фейковая регистрация" />
       </div>
 
-      <div>
-        <div className="form-section-title">Запрет на заявки</div>
-        <div className="actions-row" style={{ flexWrap: 'wrap' }}>
-          <button className="button" type="button" disabled={isSaving} onClick={() => setRegistrationBan('7d')}>
-            На 7 дней
-          </button>
-          <button className="button" type="button" disabled={isSaving} onClick={() => setRegistrationBan('30d')}>
-            На 30 дней
-          </button>
-          <button className="button" type="button" disabled={isSaving} onClick={() => setRegistrationBan('forever')}>
-            Очень долго
-          </button>
-          <button className="button button-muted" type="button" disabled={isSaving} onClick={() => setRegistrationBan('off')}>
-            Снять запрет
-          </button>
+      {isFootball && (
+        <div>
+          <div className="form-section-title">Запрет на заявки (Football)</div>
+          <div className="actions-row" style={{ flexWrap: 'wrap' }}>
+            <button className="button" type="button" disabled={isSaving} onClick={() => setRegistrationBan('7d')}>
+              На 7 дней
+            </button>
+            <button className="button" type="button" disabled={isSaving} onClick={() => setRegistrationBan('30d')}>
+              На 30 дней
+            </button>
+            <button className="button" type="button" disabled={isSaving} onClick={() => setRegistrationBan('forever')}>
+              Очень долго
+            </button>
+            <button className="button button-muted" type="button" disabled={isSaving} onClick={() => setRegistrationBan('off')}>
+              Снять запрет
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="actions-row">
         <button
@@ -319,7 +341,7 @@ function UserModerationCard({
               isBlocked: false,
               blockReason: '',
               blockedUntil: null,
-              matchBanUntil: null,
+              ...(isFootball ? { matchBanUntil: null } : {}),
             })
           }
         >
@@ -342,10 +364,12 @@ function UserModerationCard({
             <input className="datetime" type="datetime-local" value={blockedUntil} onChange={(e) => setBlockedUntil(e.target.value)} />
           </div>
 
-          <div>
-            <div className="form-section-title">Запрет на заявки до</div>
-            <input className="datetime" type="datetime-local" value={matchBanUntil} onChange={(e) => setMatchBanUntil(e.target.value)} />
-          </div>
+          {isFootball && (
+            <div>
+              <div className="form-section-title">Запрет на заявки до</div>
+              <input className="datetime" type="datetime-local" value={matchBanUntil} onChange={(e) => setMatchBanUntil(e.target.value)} />
+            </div>
+          )}
         </>
       )}
     </div>

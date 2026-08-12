@@ -18,6 +18,7 @@ import {
   subscriptionInclude,
   toNullableInt,
 } from '../lib/ecosystem.js'
+import { formatHumanDateRu } from '../lib/dates.js'
 import {
   newsIncludeShape,
   normalizeNewsTypeFilter,
@@ -371,7 +372,7 @@ router.get('/search/places', placeSearchLimiter, async (req, res, next) => {
   }
 })
 
-/// Поиск карточек тренеров по городу клуба (`city` или `cityId`) и опционально виду спорта (`sportCode`).
+/// Поиск карточек тренеров по городу (`city`/`cityId`) и опционально виду спорта (`sportCode`).
 router.get('/coach-profiles/search', async (req, res, next) => {
   try {
     const cityId = String(req.query.cityId || '').trim()
@@ -390,22 +391,34 @@ router.get('/coach-profiles/search', async (req, res, next) => {
     if (!cityId && !cityName) {
       return res.status(400).json({
         error: 'cityId or city is required',
-        message: 'Укажите cityId города клуба или city (название).',
+        message: 'Укажите cityId города или city (название).',
       })
     }
 
-    const clubWhere = {}
-    if (cityId) {
-      clubWhere.cityId = cityId
-    } else {
-      clubWhere.city = { name: { equals: cityName, mode: 'insensitive' } }
-    }
-    if (sportCode) {
-      clubWhere.sport = { code: sportCode }
-    }
+    // TEMP: привязку к клубу временно не требуем — ищем и по клубу, и по городу пользователя.
+    // Было: where: { club: clubWhere }
+    const clubCityWhere = cityId
+      ? { cityId }
+      : { city: { name: { equals: cityName, mode: 'insensitive' } } }
+    const userCityWhere = cityId
+      ? { cityId }
+      : { city: { name: { equals: cityName, mode: 'insensitive' } } }
 
     const rows = await prisma.coachProfile.findMany({
-      where: { club: clubWhere },
+      where: {
+        OR: [
+          {
+            club: {
+              ...clubCityWhere,
+              ...(sportCode ? { sport: { code: sportCode } } : {}),
+            },
+          },
+          {
+            clubId: null,
+            user: userCityWhere,
+          },
+        ],
+      },
       orderBy: [{ experienceYears: 'desc' }, { createdAt: 'asc' }],
       take: limit,
       include: coachProfileInclude,
@@ -688,7 +701,7 @@ router.get('/me/subscriptions/notifications', requireAuth, async (req, res, next
       notifications: subscriptions.map((subscription) => ({
         type: 'SUBSCRIPTION_EXPIRING',
         title: 'Абонемент скоро закончится',
-        body: `Абонемент "${subscription.plan.title}" действует до ${subscription.expiresAt.toISOString()}.`,
+        body: `Абонемент «${subscription.plan.title}» действует до ${formatHumanDateRu(subscription.expiresAt)}. Не забудьте продлить.`,
         subscription: serializeSubscription(subscription),
       })),
     })

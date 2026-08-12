@@ -55,6 +55,7 @@ export const createYooKassaPayment = async (order, fetchImpl) =>
           orderType: order.type,
           planId: order.planId || '',
           premiumPlanId: order.premiumPlanId || '',
+          scheduleEntryId: order.scheduleEntryId || '',
         },
       }),
     },

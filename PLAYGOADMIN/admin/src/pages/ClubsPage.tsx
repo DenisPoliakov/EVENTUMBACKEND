@@ -67,9 +67,10 @@ const parseGalleryUrls = (value: string) =>
 function ClubsPage() {
   const { data: sports } = useSports()
   const { data: cities } = useCities()
-  const [filters, setFilters] = useState({ sportId: '', cityId: '', age: '' })
+  const boxingSportId = sports?.find((sport) => sport.code === 'BOXING')?.id || ''
+  const [filters, setFilters] = useState({ cityId: '', age: '' })
   const { data: clubs } = useClubs({
-    sportId: filters.sportId || undefined,
+    sportCode: 'BOXING',
     cityId: filters.cityId || undefined,
     age: filters.age || undefined,
   })
@@ -79,10 +80,6 @@ function ClubsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(createEmptyForm)
 
-  const sportOptions = useMemo(
-    () => [{ value: '', label: 'Все виды спорта' }, ...(sports || []).map((s) => ({ value: s.id, label: s.name }))],
-    [sports],
-  )
   const cityOptions = useMemo(
     () => [{ value: '', label: 'Все города' }, ...(cities || []).map((c) => ({ value: c.id, label: c.name }))],
     [cities],
@@ -91,15 +88,16 @@ function ClubsPage() {
 
   const reset = () => {
     setEditingId(null)
-    setForm(createEmptyForm())
+    setForm({ ...createEmptyForm(), sportId: boxingSportId })
   }
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.sportId || !form.name.trim() || !form.address.trim()) return
+    if (!boxingSportId || !form.name.trim() || !form.address.trim()) return
 
     const payload = {
       ...form,
+      sportId: boxingSportId,
       latitude: form.latitude || undefined,
       longitude: form.longitude || undefined,
       minAge: form.minAge || undefined,
@@ -150,13 +148,10 @@ function ClubsPage() {
     <div>
       <div className="section-header">
         <div>
-          <div className="small-label">Экосистема</div>
+          <div className="small-label">EVENTUM CLUBS</div>
           <h2 style={{ margin: '4px 0 0' }}>Клубы и залы</h2>
         </div>
         <div className="actions-row">
-          <div style={{ minWidth: 190 }}>
-            <Select value={filters.sportId} onChange={(sportId) => setFilters({ ...filters, sportId })} options={sportOptions} />
-          </div>
           <div style={{ minWidth: 190 }}>
             <Select value={filters.cityId} onChange={(cityId) => setFilters({ ...filters, cityId })} options={cityOptions} />
           </div>
@@ -167,8 +162,8 @@ function ClubsPage() {
       <div className="panel">
         <form className="form-grid" onSubmit={submit}>
           <div>
-            <div className="form-section-title">Вид спорта</div>
-            <Select value={form.sportId} onChange={(sportId) => setForm({ ...form, sportId })} options={[{ value: '', label: 'Выберите' }, ...(sports || []).map((s) => ({ value: s.id, label: s.name }))]} />
+            <div className="form-section-title">Сервис</div>
+            <input className="input" value="EVENTUM CLUBS · Бокс" disabled />
           </div>
           <div>
             <div className="form-section-title">Город</div>

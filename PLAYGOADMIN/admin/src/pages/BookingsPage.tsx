@@ -14,10 +14,11 @@ const statusOptions = [
 
 function BookingsPage() {
   const [filters, setFilters] = useState({ clubId: '', status: '' })
-  const { data: clubs } = useClubs({})
+  const { data: clubs } = useClubs({ sportCode: 'BOXING' })
   const { data: bookings } = useBookings({
     clubId: filters.clubId || undefined,
     status: filters.status || undefined,
+    sportCode: 'BOXING',
   })
   const updateStatus = usePatchMutation(
     (payload) => `/bookings/${payload.id}/status`,
@@ -35,7 +36,7 @@ function BookingsPage() {
     <div>
       <div className="section-header">
         <div>
-          <div className="small-label">Экосистема</div>
+          <div className="small-label">EVENTUM CLUBS</div>
           <h2 style={{ margin: '4px 0 0' }}>Бронирования тренировок</h2>
         </div>
         <div className="actions-row">

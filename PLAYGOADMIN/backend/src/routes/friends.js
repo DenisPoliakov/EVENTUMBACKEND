@@ -8,6 +8,7 @@ import {
   rejectFriendship,
   removeFriendship,
   requestFriendship,
+  resolveFriendTargetUserId,
   searchUsersByUsername,
   serializeFriendship,
 } from '../lib/friends.js'
@@ -104,7 +105,15 @@ router.get('/me/friends/outgoing', requireAuth, async (req, res, next) => {
 
 router.post('/me/friends', requireAuth, async (req, res, next) => {
   try {
-    const friendship = await requestFriendship(req.auth.sub, req.body.userId)
+    const targetUserId = await resolveFriendTargetUserId(req.body || {})
+    if (!targetUserId) {
+      return res.status(400).json({
+        error: 'userId is required',
+        message:
+          'Передайте userId (или username) пользователя, которому отправляете заявку.',
+      })
+    }
+    const friendship = await requestFriendship(req.auth.sub, targetUserId)
     res.status(201).json({
       friendship: await serializeFriendship(friendship, req.auth.sub),
     })

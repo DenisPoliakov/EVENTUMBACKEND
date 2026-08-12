@@ -8,15 +8,41 @@ export const orderInclude = {
   plan: { select: { id: true, title: true, sportId: true } },
   premiumPlan: { select: { id: true, code: true, title: true } },
   club: { select: { id: true, name: true } },
+  scheduleEntry: {
+    select: {
+      id: true,
+      title: true,
+      dayOfWeek: true,
+      startTime: true,
+      endTime: true,
+      priceCents: true,
+      coachProfileId: true,
+    },
+  },
   payment: true,
   subscription: { include: subscriptionInclude },
   premiumSubscription: { include: { plan: true } },
+  booking: true,
 }
 
-export const requestFingerprint = ({ planId, clubId, type }) =>
+export const requestFingerprint = ({
+  planId,
+  clubId,
+  type,
+  scheduleEntryId = null,
+  scheduledAt = null,
+}) =>
   crypto
     .createHash('sha256')
-    .update(JSON.stringify({ planId, clubId: clubId || null, type }))
+    .update(
+      JSON.stringify({
+        planId: planId || null,
+        clubId: clubId || null,
+        type,
+        scheduleEntryId: scheduleEntryId || null,
+        scheduledAt: scheduledAt || null,
+      }),
+    )
     .digest('hex')
 
 export const serializePayment = (payment) =>
@@ -47,6 +73,9 @@ export const serializeOrder = (order) => ({
   premiumPlan: order.premiumPlan || null,
   clubId: order.clubId || '',
   club: order.club || null,
+  scheduleEntryId: order.scheduleEntryId || '',
+  scheduleId: order.scheduleEntryId || '',
+  scheduledAt: order.scheduledAt || null,
   type: order.type,
   status: order.status,
   amountCents: order.amountCents,
@@ -61,6 +90,7 @@ export const serializeOrder = (order) => ({
     : null,
   premiumSubscriptionId: order.premiumSubscriptionId || '',
   premiumSubscription: order.premiumSubscription || null,
+  bookingId: order.booking?.id || '',
   paidAt: order.paidAt,
   createdAt: order.createdAt,
   updatedAt: order.updatedAt,
@@ -121,6 +151,46 @@ export const activatePaidOrder = async (orderId, providerPayment) =>
       return tx.order.update({
         where: { id: orderId },
         data: { premiumSubscriptionId: subscription.id },
+        include: orderInclude,
+      })
+    }
+
+    if (order.type === 'TRIAL') {
+      const fullOrder = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { scheduleEntry: true },
+      })
+      const existingBooking = await tx.trainingBooking.findUnique({
+        where: { orderId },
+      })
+      if (!existingBooking) {
+        await tx.trainingBooking.create({
+          data: {
+            userId: fullOrder.userId,
+            clubId: fullOrder.clubId,
+            scheduleEntryId: fullOrder.scheduleEntryId,
+            scheduledAt: fullOrder.scheduledAt,
+            scheduleTitle: fullOrder.scheduleEntry?.title || 'Пробное занятие',
+            priceCents: fullOrder.amountCents,
+            platformFeeCents: Math.round(fullOrder.amountCents * 0.15),
+            currency: fullOrder.currency,
+            status: 'CONFIRMED',
+            orderId: fullOrder.id,
+            coachProfileId: fullOrder.scheduleEntry?.coachProfileId || null,
+          },
+        })
+      }
+      await tx.payment.update({
+        where: { orderId },
+        data: {
+          externalId: providerPayment.id,
+          status: 'SUCCEEDED',
+          paidAt: startsAt,
+          providerPayload: providerPayment,
+        },
+      })
+      return tx.order.findUnique({
+        where: { id: orderId },
         include: orderInclude,
       })
     }

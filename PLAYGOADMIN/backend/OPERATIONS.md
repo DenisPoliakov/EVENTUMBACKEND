@@ -109,7 +109,8 @@ From `PLAYGOADMIN/backend`, run:
 npm run db:seed
 ```
 
-The idempotent seed creates or updates demo cities, sports, clubs, coaches,
+The idempotent seed creates or updates demo cities, Football/Boxing catalog
+data, boxing clubs, coaches,
 schedules, membership plans, users/player cards, friends, chats/messages,
 teams, a match, news, favorites, notifications, a subscription, a booking,
 wellness stories, and a workout program/session. It never deletes existing
@@ -123,6 +124,11 @@ intentional disposable demo environment must explicitly set
 `ALLOW_PRODUCTION_DEMO_SEED=true`. Seeding `TEST_DATABASE_URL` is also blocked
 unless `ALLOW_TEST_DEMO_SEED=true`, because integration tests expect to manage
 their own fixtures.
+
+Migration `20260812170000_remove_fitness_demo_data` removes the obsolete
+demo-only `FITNESS` sport and all dependent demo data. Production navigation
+must expose only the `EVENTUM FOOTBALL` and `EVENTUM CLUBS` products; Wellness
+and workout content belongs to Clubs and is not a third product.
 
 ## Tests
 

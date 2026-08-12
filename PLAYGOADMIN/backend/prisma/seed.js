@@ -33,28 +33,9 @@ const DEMO_SPORTS = [
     name: 'Бокс',
     description: 'Боксёрские клубы, секции и персональные тренировки',
   },
-  {
-    code: 'FITNESS',
-    name: 'Фитнес',
-    description: 'Тренажёрные залы и групповые занятия',
-  },
 ]
 
 const DEMO_CLUBS = [
-  {
-    key: 'moscow-football',
-    sportCode: 'FOOTBALL',
-    city: 'Москва',
-    name: 'Eventum Football Arena',
-    kind: 'Футбольный клуб',
-    address: 'Ленинградский проспект, 36',
-    description: 'Большой футбольный центр с крытыми полями и детской академией.',
-    latitude: 55.791944,
-    longitude: 37.559444,
-    tier: 'GOLD',
-    minAge: 6,
-    maxAge: 60,
-  },
   {
     key: 'moscow-boxing',
     sportCode: 'BOXING',
@@ -68,48 +49,6 @@ const DEMO_CLUBS = [
     tier: 'SILVER',
     minAge: 12,
     maxAge: 55,
-  },
-  {
-    key: 'spb-fitness',
-    sportCode: 'FITNESS',
-    city: 'Санкт-Петербург',
-    name: 'Нева Fitness',
-    kind: 'Фитнес-клуб',
-    address: 'Невский проспект, 88',
-    description: 'Тренажёрный зал, функциональные тренировки и растяжка.',
-    latitude: 59.9328,
-    longitude: 30.3494,
-    tier: 'GOLD',
-    minAge: 16,
-    maxAge: null,
-  },
-  {
-    key: 'spb-football',
-    sportCode: 'FOOTBALL',
-    city: 'Санкт-Петербург',
-    name: 'Балтика Спорт',
-    kind: 'Футбольный клуб',
-    address: 'Петроградская набережная, 18',
-    description: 'Любительские лиги и тренировки для взрослых.',
-    latitude: 59.9585,
-    longitude: 30.3401,
-    tier: 'BRONZE',
-    minAge: 18,
-    maxAge: 50,
-  },
-  {
-    key: 'nsk-fitness',
-    sportCode: 'FITNESS',
-    city: 'Новосибирск',
-    name: 'Сибирь Fitness',
-    kind: 'Фитнес-клуб',
-    address: 'улица Титова, 22',
-    description: 'Современный районный фитнес-клуб рядом с метро.',
-    latitude: 54.9824,
-    longitude: 82.8805,
-    tier: 'SILVER',
-    minAge: 14,
-    maxAge: null,
   },
   {
     key: 'nsk-boxing',
@@ -304,10 +243,10 @@ const ensureUsers = async ({ cities }) => {
 
 const ensureCoaches = async ({ users, clubs }) => {
   const coachDefinitions = [
-    { userIndex: 0, clubKey: 'moscow-football', experienceYears: 9 },
+    { userIndex: 0, clubKey: 'moscow-boxing', experienceYears: 9 },
     { userIndex: 1, clubKey: 'moscow-boxing', experienceYears: 7 },
-    { userIndex: 2, clubKey: 'spb-fitness', experienceYears: 11 },
-    { userIndex: 3, clubKey: 'nsk-fitness', experienceYears: 6 },
+    { userIndex: 2, clubKey: 'nsk-boxing', experienceYears: 11 },
+    { userIndex: 3, clubKey: 'nsk-boxing', experienceYears: 6 },
   ]
   const coaches = {}
   for (const definition of coachDefinitions) {
@@ -555,8 +494,8 @@ const ensureContentAndActivity = async ({
     })
   }
 
-  const firstClub = clubs['moscow-football']
-  const firstPlan = plans['moscow-football']
+  const firstClub = clubs['moscow-boxing']
+  const firstPlan = plans['moscow-boxing']
   await prisma.userSubscription.upsert({
     where: { id: 'demo-subscription-active' },
     update: {
@@ -582,8 +521,8 @@ const ensureContentAndActivity = async ({
     },
   })
 
-  const bookingClub = clubs['nsk-fitness']
-  const bookingSchedule = schedules['nsk-fitness']
+  const bookingClub = clubs['nsk-boxing']
+  const bookingSchedule = schedules['nsk-boxing']
   await prisma.trainingBooking.upsert({
     where: { id: 'demo-booking-confirmed' },
     update: {
@@ -723,7 +662,7 @@ const ensureWellnessAndWorkout = async ({ users }) => {
       subtitle: '15 минут',
       description: 'Короткая тренировка для знакомства с таймером.',
       guide: 'Выполняйте упражнения в комфортном темпе.',
-      iconKey: 'fitness_center',
+      iconKey: 'sports_mma',
       gradientStart: '#FF7A00',
       gradientEnd: '#FFB800',
       estimatedMinutes: 15,

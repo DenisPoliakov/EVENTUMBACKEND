@@ -14,6 +14,11 @@ http://localhost:4000
 
 ## Что добавлено в этом обновлении
 
+- временно отключена привязка новостей к клубу (в админке и API `clubId` принудительно `null`)
+- регистрация требует `birthDate`
+- заявки в друзья создают realtime/push уведомления `FRIEND_REQUEST` / `FRIEND_ACCEPTED`
+- тексты уведомлений о брони и окончании подписки стали человекочитаемыми
+- тренеры с Premium могут публиковать Wellness-истории; клубы — через админку (`authorClubId`) или `asClub` у тренера
 - добавлены русскоязычные Wellness-истории:
   - `GET /api/wellness-stories`
   - `POST /api/me/wellness-stories/:id/view`
@@ -94,8 +99,12 @@ http://localhost:4000
 - для персональной новостной ленты используется `/api/me/news`
 - для пользовательских уведомлений используется `/api/me/notifications`
 - аккаунт пользователя общий для всей экосистемы
-- спортивные сущности разделяются по `sportId` / `sportCode`
-- футбол, бокс и будущие виды спорта живут в общей PostgreSQL-базе, но логически изолированы видом спорта
+- верхний уровень экосистемы состоит только из `EVENTUM FOOTBALL` и
+  `EVENTUM CLUBS`; общий между ними — аккаунт и платформенные сервисы
+- `EVENTUM FOOTBALL` содержит футбольные матчи, команды и стадионы,
+  `EVENTUM CLUBS` — боксёрские клубы, абонементы, бронирования и Wellness
+- технические `sportId` / `sportCode` используются для изоляции данных,
+  но не создают отдельные продукты или вкладки админки
 
 ## Как добавить новую ручку (для разработчиков)
 
@@ -161,14 +170,20 @@ http://localhost:4000
 ### Orders and YooKassa payments
 
 - `POST /api/me/orders` (Bearer) создаёт только заказ, но не активный абонемент.
-  - `planId` и `passId` — aliases; требуется `Idempotency-Key`.
-  - `type`: `MEMBERSHIP` (`subscription` и `pass` принимаются как compatibility aliases).
-  - `clubId`, если передан, обязан совпадать с тарифом.
-  - цена, валюта и длительность берутся из `MembershipPlan`; несовпадающие
-    клиентские `priceCents`, `amountCents`, `currency`, `durationDays` отклоняются.
-  - ответ содержит snapshot заказа, платеж и `confirmationUrl`.
+  - `type`:
+    - `MEMBERSHIP` (`subscription` / `pass` — aliases) — покупка абонемента по `planId`/`passId`
+    - `TRIAL` (`free_trial` / `booking` / `lesson` — aliases) — **пробное занятие**: нужна запись в расписание, абонемент **не** создаётся
+  - для `TRIAL` обязательны `scheduleEntryId` (или `scheduleId`) и `scheduledAt`
+  - если клиент шлёт `type=trial` вместе с `passId` месячного абонемента без слота — `400` с пояснением
+  - цена пробного берётся из `ClubSchedule.priceCents`; при `0` запись подтверждается сразу без ЮKassa
+  - после оплаты/бесплатного trial создаётся `TrainingBooking` со статусом `CONFIRMED`
+  - для `MEMBERSHIP`: `planId` и `passId` — aliases; требуется `Idempotency-Key`
+  - `clubId`, если передан, обязан совпадать с тарифом/слотом
+  - цена, валюта и длительность абонемента берутся из `MembershipPlan`; несовпадающие
+    клиентские `priceCents`, `amountCents`, `currency`, `durationDays` отклоняются
+  - ответ содержит snapshot заказа, платеж и `confirmationUrl`
   - без `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY` сохраняется один `PENDING`
-    заказ и возвращается `503`, `code=PAYMENTS_NOT_CONFIGURED`; подписка не создаётся.
+    заказ и возвращается `503`, `code=PAYMENTS_NOT_CONFIGURED`; подписка не создаётся
 - `POST /api/subscriptions` отключён (`410 DIRECT_SUBSCRIPTIONS_DISABLED`).
 - `POST /api/webhooks/yookassa` не доверяет payload: backend запрашивает платёж
   у YooKassa по external ID, сверяет статус, сумму, валюту и metadata заказа,
@@ -283,6 +298,13 @@ http://localhost:4000
   - `:id` может быть UUID или `slug`
   - фиксирует уникальный просмотр текущего пользователя
   - повторный запрос того же пользователя не увеличивает счётчик
+- Тренеры с активным Premium:
+  - `GET/POST /api/me/wellness-stories`
+  - `PUT/DELETE /api/me/wellness-stories/:id`
+  - `POST /api/me/wellness-stories/:id/cover`
+  - optional body `asClub: true` — публикация от имени клуба, к которому привязан тренер
+- В ленте у историй есть `authorType` (`platform` / `coach` / `club`) и данные автора/клуба
+- В админке можно указать `authorClubId`, чтобы опубликовать историю от клуба
 
 Ответ:
 
@@ -371,19 +393,21 @@ http://localhost:4000
   - body:
     - `email`
     - `username`
+    - `password`
+    - `city`
+    - `birthDate` — обязательна, формат `YYYY-MM-DD` (также принимается `dateOfBirth`)
     - optional:
       - `phone`
-    - `password`
-    - `firstName`
-    - `lastName`
-    - `city`
+      - `firstName`
+      - `lastName`
+      - `referralCode` / `inviteCode`
 - `POST /api/auth/login`
   - body:
     - `identifier`
     - `password`
 - `GET /api/me`
   - Bearer required
-  - возвращает текущего пользователя и его ограничения
+  - возвращает текущего пользователя и `birthDate`
 - `PATCH /api/me`
   - Bearer required
   - body:
@@ -391,6 +415,7 @@ http://localhost:4000
     - `username`
     - optional:
       - `phone`
+      - `birthDate`
     - `firstName`
     - `lastName`
     - `city`
@@ -508,11 +533,13 @@ Server → client:
 - `POST /api/me/friends`
   - Bearer required
   - отправить заявку в друзья
-  - body: `{ "userId": "..." }`
-  - если у адресата уже есть исходящая заявка к вам — она принимается сразу и создаётся чат
+  - body: `{ "userId": "..." }` (также принимаются `username`, `addresseeId`, `targetUserId`, `id`)
+  - адресат сразу получает in-app/push уведомление `FRIEND_REQUEST` через WebSocket `notification:upserted`
+  - если у адресата уже есть исходящая заявка к вам — она принимается сразу и создаётся чат; отправителю уходит `FRIEND_ACCEPTED`
 - `POST /api/me/friends/:friendshipId/accept`
   - Bearer required
   - принять входящую заявку и создать/получить direct-чат
+  - отправителю заявки уходит уведомление `FRIEND_ACCEPTED`
 - `POST /api/me/friends/:friendshipId/reject`
   - Bearer required
   - отклонить входящую заявку
@@ -682,23 +709,36 @@ Server → client:
     - `lastName`
     - `phone`
     - optional:
-      - `clubId`
       - `experienceYears`
       - `description`
       - `photoUrl`
+  - **`clubId` через этот endpoint менять нельзя** — нужна заявка на привязку
+- `POST /api/me/coach-profile/club-link-requests`
+  - Bearer required
+  - body: `{ "clubId": "...", "note?: "..." }`
+  - создаёт заявку `PENDING` на привязку карточки к клубу
+- `GET /api/me/coach-profile/club-link-requests`
+  - Bearer required
+  - список своих заявок
+- `POST /api/me/coach-profile/club-link-requests/:id/cancel`
+  - Bearer required
+  - отменить свою `PENDING` заявку
 - `POST /api/me/coach-profile/photo`
   - Bearer required
   - multipart/form-data
   - field:
     - `file`
   - возвращает `url`
+- Admin:
+  - `GET /api/admin/coach-club-link-requests?status=PENDING|ALL|...`
+  - `POST /api/admin/coach-club-link-requests/:id/approve` — ставит `clubId` на карточке
+  - `POST /api/admin/coach-club-link-requests/:id/reject`
 
 Логика:
-- привязка тренера к клубу опциональна
-- тренер сам заполняет свои данные
+- привязка тренера к клубу только после одобрения админом
+- тренер сам заполняет свои данные, но не выбирает клуб напрямую
 - телефон тренера обязателен
 - если тренер привязан к клубу, то при просмотре клуба его карточка приходит в `coachProfiles`
-- поиск `GET /api/coach-profiles/search` работает только по тренерам, у которых есть привязка к клубу
 - в карточке тренера хранятся:
   - имя
   - фамилия
@@ -1162,8 +1202,10 @@ Server → client:
 - `DELETE /api/admin/sports/:id`
 
 Логика:
-- `code` хранится в верхнем регистре
-- базовые виды спорта `FOOTBALL` и `BOXING` создаются автоматически при старте backend
+- поддерживаются только системные коды `FOOTBALL` и `BOXING`
+- они создаются автоматически при старте backend и не могут быть удалены
+- отдельная CRUD-страница видов спорта из админки убрана: верхний
+  переключатель управляет продуктами `EVENTUM FOOTBALL` / `EVENTUM CLUBS`
 
 ### Ecosystem Clubs
 

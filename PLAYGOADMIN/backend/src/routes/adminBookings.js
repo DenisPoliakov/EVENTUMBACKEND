@@ -5,6 +5,7 @@ import {
   bookingInclude,
   serializeBooking,
 } from '../lib/bookings.js'
+import { formatHumanDateTimeRu } from '../lib/dates.js'
 import { createNotificationWithPush } from '../lib/pushNotifications.js'
 import prisma from '../prisma.js'
 
@@ -13,6 +14,7 @@ const router = express.Router()
 router.get('/', async (req, res, next) => {
   try {
     const status = String(req.query.status || '').trim().toUpperCase()
+    const sportCode = String(req.query.sportCode || '').trim().toUpperCase()
     if (status && !BOOKING_STATUSES.includes(status)) {
       return res.status(400).json({ error: 'status is invalid' })
     }
@@ -21,6 +23,7 @@ router.get('/', async (req, res, next) => {
       where: {
         status: status || undefined,
         clubId: req.query.clubId || undefined,
+        club: sportCode ? { sport: { code: sportCode } } : undefined,
         userId: req.query.userId || undefined,
       },
       include: bookingInclude,
@@ -53,11 +56,14 @@ router.patch('/:id/status', async (req, res, next) => {
       include: bookingInclude,
     })
     if (status === 'CONFIRMED' && existing.status !== 'CONFIRMED') {
+      const when = formatHumanDateTimeRu(booking.scheduledAt)
       await createNotificationWithPush({
         userId: booking.userId,
         type: 'BOOKING_CONFIRMED',
         title: 'Запись подтверждена',
-        body: `${booking.scheduleTitle} — ${booking.scheduledAt.toISOString()}`,
+        body: when
+          ? `Вы записаны на «${booking.scheduleTitle}» — ${when}`
+          : `Вы записаны на «${booking.scheduleTitle}»`,
         dedupeKey: `booking-confirmed:${booking.id}`,
         data: { bookingId: booking.id, clubId: booking.clubId },
       })

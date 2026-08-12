@@ -148,6 +148,10 @@ export type WellnessStory = {
   isActive: boolean
   uniqueViewerCount: number
   viewedByMe?: boolean
+  authorType?: 'platform' | 'coach' | 'club'
+  authorClubId?: string | null
+  authorUserId?: string | null
+  coachProfileId?: string | null
   deletedAt?: string | null
   createdAt?: string
   updatedAt?: string
@@ -367,7 +371,7 @@ export type Order = {
   premiumPlan?: { id: string; code: string; title: string } | null
   clubId: string
   club?: { id: string; name: string } | null
-  type: 'MEMBERSHIP' | 'PREMIUM'
+  type: 'MEMBERSHIP' | 'PREMIUM' | 'TRIAL'
   status: 'PENDING' | 'PAYMENT_CREATED' | 'PAID' | 'CANCELLED' | 'FAILED'
   amountCents: number
   currency: string

@@ -18,6 +18,31 @@ export const wellnessStoryCountInclude = {
       views: true,
     },
   },
+  authorUser: {
+    select: {
+      id: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      name: true,
+    },
+  },
+  authorClub: {
+    select: {
+      id: true,
+      name: true,
+      logoUrl: true,
+      imageUrl: true,
+    },
+  },
+  coachProfile: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      photoUrl: true,
+    },
+  },
 }
 
 export const publicWellnessStoryWhere = (now = new Date()) => ({
@@ -48,6 +73,34 @@ export const serializeWellnessStory = (
     publishedAt: story.publishedAt,
     uniqueViewerCount: story._count?.views ?? 0,
     viewedByMe: Boolean(viewedByMe),
+    authorType: String(story.authorType || 'PLATFORM').toLowerCase(),
+    authorUserId: story.authorUserId || null,
+    authorClubId: story.authorClubId || null,
+    coachProfileId: story.coachProfileId || null,
+    author: story.authorUser
+      ? {
+          id: story.authorUser.id,
+          username: story.authorUser.username || '',
+          firstName: story.authorUser.firstName || '',
+          lastName: story.authorUser.lastName || '',
+          name: story.authorUser.name || '',
+        }
+      : null,
+    authorClub: story.authorClub
+      ? {
+          id: story.authorClub.id,
+          name: story.authorClub.name,
+          logoUrl: story.authorClub.logoUrl || story.authorClub.imageUrl || null,
+        }
+      : null,
+    coachProfile: story.coachProfile
+      ? {
+          id: story.coachProfile.id,
+          firstName: story.coachProfile.firstName,
+          lastName: story.coachProfile.lastName,
+          photoUrl: story.coachProfile.photoUrl || null,
+        }
+      : null,
   }
 
   if (!includeAdminFields) return serialized
@@ -152,6 +205,24 @@ export const validateWellnessStoryPayload = (body, { partial = false } = {}) => 
       return { error: 'isActive must be a boolean' }
     }
     data.isActive = body.isActive
+  }
+
+  if (Object.hasOwn(body, 'authorClubId')) {
+    const authorClubId = String(body.authorClubId ?? '').trim()
+    data.authorClubId = authorClubId || null
+    if (data.authorClubId) {
+      data.authorType = 'CLUB'
+    } else if (!Object.hasOwn(body, 'authorType')) {
+      data.authorType = 'PLATFORM'
+    }
+  }
+
+  if (Object.hasOwn(body, 'authorType')) {
+    const authorType = String(body.authorType ?? '').trim().toUpperCase()
+    if (!['PLATFORM', 'COACH', 'CLUB'].includes(authorType)) {
+      return { error: 'authorType must be platform, coach or club' }
+    }
+    data.authorType = authorType
   }
 
   return { data }

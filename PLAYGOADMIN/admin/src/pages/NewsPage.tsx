@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import dayjs from 'dayjs'
 import {
-  useClubs,
   useDeleteMutation,
   useNews,
   usePostMutation,
@@ -23,7 +22,8 @@ const mediaUrl = (url: string) => {
 
 function NewsPage() {
   const { data: news } = useNews()
-  const { data: clubs } = useClubs({})
+  // TEMP: привязка к клубу отключена
+  // const { data: clubs } = useClubs({})
   const createNews = usePostMutation('/news', ['news'])
   const updateNews = usePutMutation((payload) => `/news/${payload.id}`, ['news'])
   const deleteNews = useDeleteMutation((id) => `/news/${id}`, ['news'])
@@ -59,7 +59,8 @@ function NewsPage() {
 
     const payload = {
       ...form,
-      clubId: form.clubId || null,
+      // TEMP: привязка к клубу отключена
+      clubId: null,
       publishedAt: form.publishedAt || undefined,
     }
 
@@ -117,6 +118,7 @@ function NewsPage() {
               ]}
             />
           </div>
+          {/* TEMP: привязка новости к клубу отключена
           <div>
             <div className="form-section-title">Клуб</div>
             <Select
@@ -132,6 +134,7 @@ function NewsPage() {
               ]}
             />
           </div>
+          */}
           <div style={{ gridColumn: '1 / -1' }}>
             <div className="form-section-title">Текст новости</div>
             <textarea

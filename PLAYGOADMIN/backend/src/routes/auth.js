@@ -7,9 +7,9 @@ import {
   normalizeIdentifier,
   revokeRefreshToken,
   rotateRefreshToken,
-  splitName,
   verifyPassword,
 } from '../lib/auth.js'
+import { parseBirthDate } from '../lib/dates.js'
 import { applyReferralCode, ensureReferralCode } from '../lib/referrals.js'
 import { deleteUserAccount } from '../lib/userDeletion.js'
 import { requireAuth } from '../middleware/requireAuth.js'
@@ -63,6 +63,9 @@ const serializeSelfUser = (user, cityName = '') => ({
   phone: user.phone || '',
   firstName: user.firstName || '',
   lastName: user.lastName || '',
+  birthDate: user.birthDate
+    ? new Date(user.birthDate).toISOString().slice(0, 10)
+    : null,
   city: cityName || user.city?.name || '',
   isBlocked: Boolean(user.isBlocked),
   blockReason: user.blockReason || '',
@@ -70,6 +73,7 @@ const serializeSelfUser = (user, cityName = '') => ({
   matchBanUntil: user.matchBanUntil || null,
   hasPlayerCard: Boolean(user.playerCard),
 })
+
 
 router.post('/auth/register', async (req, res, next) => {
   try {
@@ -83,9 +87,18 @@ router.post('/auth/register', async (req, res, next) => {
     const referralCode = String(
       req.body.referralCode ?? req.body.inviteCode ?? '',
     ).trim()
+    const birthDateParsed = parseBirthDate(
+      req.body.birthDate ?? req.body.dateOfBirth,
+    )
 
     if (!email || !usernameInput || !password || !cityName) {
       return res.status(400).json({ error: 'email, username, password and city are required' })
+    }
+    if (birthDateParsed.skipped || birthDateParsed.value == null) {
+      return res.status(400).json({ error: 'birthDate is required (YYYY-MM-DD)' })
+    }
+    if (birthDateParsed.error) {
+      return res.status(400).json({ error: birthDateParsed.error })
     }
     if (password.length < 6) {
       return res.status(400).json({ error: 'password must be at least 6 characters' })
@@ -100,6 +113,7 @@ router.post('/auth/register', async (req, res, next) => {
         phone: phone || null,
         firstName,
         lastName,
+        birthDate: birthDateParsed.value,
         name: `${firstName} ${lastName}`.trim() || username,
         passwordHash: hashPassword(password),
         role: 'USER',
@@ -117,6 +131,7 @@ router.post('/auth/register', async (req, res, next) => {
         return res.status(referral.status).json({ error: referral.error })
       }
     }
+
     const response = await authResponse(user, city?.name || cityName)
     return res.status(201).json({
       ...response,
@@ -205,11 +220,17 @@ router.patch('/me', requireAuth, async (req, res, next) => {
     const firstName = (req.body.firstName || '').trim()
     const lastName = (req.body.lastName || '').trim()
     const cityName = (req.body.city || '').trim()
+    const birthDateParsed = parseBirthDate(
+      req.body.birthDate ?? req.body.dateOfBirth,
+    )
     if (!email || !cityName) {
       return res.status(400).json({ error: 'email and city are required' })
     }
     if (req.body.username !== undefined && !username) {
       return res.status(400).json({ error: 'username is required' })
+    }
+    if (birthDateParsed.error) {
+      return res.status(400).json({ error: birthDateParsed.error })
     }
 
     if (username) {
@@ -230,6 +251,7 @@ router.patch('/me', requireAuth, async (req, res, next) => {
         lastName,
         name: `${firstName} ${lastName}`.trim() || username || email,
         cityId: city?.id,
+        ...(birthDateParsed.skipped ? {} : { birthDate: birthDateParsed.value }),
       },
       include: { city: true, playerCard: true },
     })

@@ -6,10 +6,11 @@ import Select from '../components/Select'
 
 function SubscriptionsPage() {
   const { data: sports } = useSports()
-  const [filters, setFilters] = useState({ sportId: '', clubId: '', status: '' })
-  const { data: clubs } = useClubs({ sportId: filters.sportId || undefined })
+  const boxingSportId = sports?.find((sport) => sport.code === 'BOXING')?.id || ''
+  const [filters, setFilters] = useState({ clubId: '', status: '' })
+  const { data: clubs } = useClubs({ sportCode: 'BOXING' })
   const { data: subscriptions, refetch } = useSubscriptions({
-    sportId: filters.sportId || undefined,
+    sportId: boxingSportId || undefined,
     clubId: filters.clubId || undefined,
     status: filters.status || undefined,
   })
@@ -23,13 +24,10 @@ function SubscriptionsPage() {
     <div>
       <div className="section-header">
         <div>
-          <div className="small-label">Экосистема</div>
+          <div className="small-label">EVENTUM CLUBS</div>
           <h2 style={{ margin: '4px 0 0' }}>Оплаты и абонементы пользователей</h2>
         </div>
         <div className="actions-row">
-          <div style={{ minWidth: 190 }}>
-            <Select value={filters.sportId} onChange={(sportId) => setFilters({ ...filters, sportId, clubId: '' })} options={[{ value: '', label: 'Все виды спорта' }, ...(sports || []).map((s) => ({ value: s.id, label: s.name }))]} />
-          </div>
           <div style={{ minWidth: 190 }}>
             <Select value={filters.clubId} onChange={(clubId) => setFilters({ ...filters, clubId })} options={[{ value: '', label: 'Все клубы' }, ...(clubs || []).map((c) => ({ value: c.id, label: c.name }))]} />
           </div>

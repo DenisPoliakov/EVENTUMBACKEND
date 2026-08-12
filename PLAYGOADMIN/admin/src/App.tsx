@@ -8,8 +8,8 @@ import TeamsPage from './pages/TeamsPage'
 import RegistrationsPage from './pages/RegistrationsPage'
 import UsersPage from './pages/UsersPage'
 import NewsPage from './pages/NewsPage'
-import SportsPage from './pages/SportsPage'
 import ClubsPage from './pages/ClubsPage'
+import CoachClubLinksPage from './pages/CoachClubLinksPage'
 import SubscriptionPlansPage from './pages/SubscriptionPlansPage'
 import SubscriptionsPage from './pages/SubscriptionsPage'
 import CrmPage from './pages/CrmPage'
@@ -67,8 +67,8 @@ function App() {
         <Route path="/workout-analytics" element={<WorkoutAnalyticsPage />} />
         <Route path="/push-campaigns" element={<PushCampaignsPage />} />
         <Route path="/support" element={<SupportPage />} />
-        <Route path="/sports" element={<SportsPage />} />
         <Route path="/clubs" element={<ClubsPage />} />
+        <Route path="/coach-club-links" element={<CoachClubLinksPage />} />
         <Route path="/subscription-plans" element={<SubscriptionPlansPage />} />
         <Route path="/subscriptions" element={<SubscriptionsPage />} />
         <Route path="/bookings" element={<BookingsPage />} />

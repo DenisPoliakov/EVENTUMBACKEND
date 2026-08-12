@@ -155,7 +155,7 @@ export const useSports = () =>
     queryFn: async () => (await api.get('/sports')).data,
   })
 
-export const useClubs = (filters: { sportId?: string; cityId?: string; age?: string; tier?: string }) =>
+export const useClubs = (filters: { sportId?: string; sportCode?: string; cityId?: string; age?: string; tier?: string }) =>
   useQuery<SportClub[]>({
     queryKey: ['clubs', filters],
     queryFn: async () => (await api.get('/clubs', { params: filters })).data,
@@ -173,7 +173,7 @@ export const useSubscriptions = (filters: { sportId?: string; clubId?: string; u
     queryFn: async () => (await api.get('/subscriptions', { params: filters })).data,
   })
 
-export const useBookings = (filters: { clubId?: string; userId?: string; status?: string }) =>
+export const useBookings = (filters: { clubId?: string; userId?: string; status?: string; sportCode?: string }) =>
   useQuery<TrainingBooking[]>({
     queryKey: ['bookings', filters],
     queryFn: async () => (await api.get('/bookings', { params: filters })).data,

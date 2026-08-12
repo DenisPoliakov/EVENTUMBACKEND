@@ -182,6 +182,15 @@ router.post('/', async (req, res, next) => {
     const parsed = validateWellnessStoryPayload(req.body)
     if (parsed.error) return res.status(400).json({ error: parsed.error })
 
+    if (parsed.data.authorClubId) {
+      const club = await prisma.sportClub.findUnique({
+        where: { id: parsed.data.authorClubId },
+        select: { id: true },
+      })
+      if (!club) return res.status(404).json({ error: 'Club not found' })
+      parsed.data.authorType = 'CLUB'
+    }
+
     const story = await prisma.wellnessStory.create({
       data: parsed.data,
       include: wellnessStoryCountInclude,
@@ -203,6 +212,15 @@ router.put('/:id', async (req, res, next) => {
     })
     if (!existing) {
       return res.status(404).json({ error: 'Wellness story not found' })
+    }
+
+    if (parsed.data.authorClubId) {
+      const club = await prisma.sportClub.findUnique({
+        where: { id: parsed.data.authorClubId },
+        select: { id: true },
+      })
+      if (!club) return res.status(404).json({ error: 'Club not found' })
+      parsed.data.authorType = 'CLUB'
     }
 
     const story = await prisma.wellnessStory.update({

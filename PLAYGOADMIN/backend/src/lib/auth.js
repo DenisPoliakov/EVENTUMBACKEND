@@ -85,6 +85,9 @@ const serializeAuthUser = (user, cityName = '') => ({
   phone: user.phone || '',
   firstName: user.firstName || '',
   lastName: user.lastName || '',
+  birthDate: user.birthDate
+    ? new Date(user.birthDate).toISOString().slice(0, 10)
+    : null,
   city: cityName || user.city?.name || '',
   isBlocked: Boolean(user.isBlocked),
   blockReason: user.blockReason || '',

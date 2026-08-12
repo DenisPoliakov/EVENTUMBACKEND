@@ -11,6 +11,7 @@ import {
   useWorkoutSteps,
 } from '../api/hooks'
 import Select from '../components/Select'
+import { slugify } from '../lib/slugify'
 import type {
   WorkoutPhase,
   WorkoutProgram,
@@ -19,7 +20,7 @@ import type {
 
 const phaseOptions: Array<{ value: WorkoutPhase; label: string }> = [
   { value: 'warmup', label: 'Разминка' },
-  { value: 'work', label: 'Работа' },
+  { value: 'work', label: 'Основная работа' },
   { value: 'rest', label: 'Отдых' },
   { value: 'cooldown', label: 'Заминка' },
 ]
@@ -28,16 +29,25 @@ const phaseLabels = Object.fromEntries(
   phaseOptions.map((option) => [option.value, option.label]),
 ) as Record<WorkoutPhase, string>
 
+const iconOptions = [
+  { value: '', label: 'Без иконки' },
+  { value: 'sports_mma', label: 'Бокс / единоборства' },
+  { value: 'fitness_center', label: 'Силовая тренировка' },
+  { value: 'directions_run', label: 'Кардио' },
+  { value: 'self_improvement', label: 'Восстановление' },
+  { value: 'accessibility_new', label: 'Растяжка / мобилити' },
+]
+
 const emptyProgramForm = () => ({
   id: '',
   title: '',
   subtitle: '',
   description: '',
   guide: '',
-  iconKey: '',
-  gradientStart: '',
-  gradientEnd: '',
-  estimatedMinutes: '',
+  iconKey: 'sports_mma',
+  gradientStart: '#E8F5EC',
+  gradientEnd: '#86EFAC',
+  estimatedMinutes: '15',
   sortOrder: '0',
   isActive: 'true',
 })
@@ -46,13 +56,14 @@ const emptyStepForm = () => ({
   phase: 'work' as WorkoutPhase,
   title: '',
   description: '',
-  durationSeconds: '90',
-  poseIndex: '',
+  durationSeconds: '60',
 })
 
 const formatDuration = (seconds: number) => {
   const minutes = Math.floor(seconds / 60)
   const remainder = seconds % 60
+  if (!minutes) return `${remainder} сек`
+  if (!remainder) return `${minutes} мин`
   return `${minutes} мин ${remainder} сек`
 }
 
@@ -99,10 +110,11 @@ function WorkoutProgramsPage() {
   const uploadIllustration = useUploadWorkoutStepIllustration()
 
   const [programForm, setProgramForm] = useState(emptyProgramForm)
+  const [idTouched, setIdTouched] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [stepForm, setStepForm] = useState(emptyStepForm)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
   const [illustrationFile, setIllustrationFile] = useState<File | null>(null)
-  const [orderValues, setOrderValues] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
 
   const selectedProgram = useMemo(
@@ -119,12 +131,27 @@ function WorkoutProgramsPage() {
   const resetProgramForm = () => {
     setEditingId(null)
     setProgramForm(emptyProgramForm())
+    setIdTouched(false)
+    setShowAdvanced(false)
     resetStepForm()
     setError('')
   }
 
+  const handleTitleChange = (title: string) => {
+    setProgramForm((current) => ({
+      ...current,
+      title,
+      id:
+        !editingId && !idTouched
+          ? slugify(title, 'workout')
+          : current.id,
+    }))
+  }
+
   const startEditingProgram = (program: WorkoutProgram) => {
     setEditingId(program.id)
+    setIdTouched(true)
+    setShowAdvanced(false)
     setProgramForm({
       id: program.id,
       title: program.title,
@@ -132,8 +159,8 @@ function WorkoutProgramsPage() {
       description: program.description,
       guide: program.guide || '',
       iconKey: program.iconKey || '',
-      gradientStart: program.gradientStart || '',
-      gradientEnd: program.gradientEnd || '',
+      gradientStart: program.gradientStart || '#E8F5EC',
+      gradientEnd: program.gradientEnd || '#86EFAC',
       estimatedMinutes: program.estimatedMinutes
         ? String(program.estimatedMinutes)
         : '',
@@ -147,17 +174,15 @@ function WorkoutProgramsPage() {
   const handleProgramSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setError('')
-    if (
-      !programForm.id.trim() ||
-      !programForm.title.trim() ||
-      !programForm.description.trim()
-    ) {
-      setError('Заполните ID, название и описание программы')
+    const programId =
+      programForm.id.trim() || slugify(programForm.title, 'workout')
+    if (!programForm.title.trim() || !programForm.description.trim()) {
+      setError('Нужны название и короткое описание программы')
       return
     }
 
     const payload = {
-      id: programForm.id.trim(),
+      id: programId,
       title: programForm.title.trim(),
       subtitle: programForm.subtitle.trim() || null,
       description: programForm.description.trim(),
@@ -168,7 +193,7 @@ function WorkoutProgramsPage() {
       estimatedMinutes: programForm.estimatedMinutes
         ? Number(programForm.estimatedMinutes)
         : null,
-      sortOrder: Number(programForm.sortOrder),
+      sortOrder: Number(programForm.sortOrder) || 0,
       isActive: programForm.isActive === 'true',
       locale: 'ru',
     }
@@ -212,7 +237,6 @@ function WorkoutProgramsPage() {
       title: step.title,
       description: step.description || '',
       durationSeconds: String(step.durationSeconds),
-      poseIndex: step.poseIndex === null ? '' : String(step.poseIndex),
     })
     setIllustrationFile(null)
     setError('')
@@ -223,7 +247,7 @@ function WorkoutProgramsPage() {
     if (!editingId) return
     setError('')
     if (!stepForm.title.trim()) {
-      setError('Заполните название шага')
+      setError('Нужно название шага')
       return
     }
 
@@ -231,8 +255,8 @@ function WorkoutProgramsPage() {
       phase: stepForm.phase,
       title: stepForm.title.trim(),
       description: stepForm.description.trim() || null,
-      durationSeconds: Number(stepForm.durationSeconds),
-      poseIndex: stepForm.poseIndex === '' ? null : Number(stepForm.poseIndex),
+      durationSeconds: Number(stepForm.durationSeconds) || 60,
+      poseIndex: null,
     }
 
     try {
@@ -269,23 +293,16 @@ function WorkoutProgramsPage() {
     }
   }
 
-  const handleReorder = async () => {
-    const ranked = steps.map((step) => ({
-      id: step.id,
-      order: Number(orderValues[step.id] ?? step.order),
-    }))
-    if (
-      ranked.some((item) => !Number.isInteger(item.order) || item.order < 1) ||
-      new Set(ranked.map((item) => item.order)).size !== ranked.length
-    ) {
-      setError('Порядок должен состоять из уникальных положительных чисел')
-      return
-    }
+  const moveStep = async (stepId: string, direction: -1 | 1) => {
+    const currentIndex = steps.findIndex((step) => step.id === stepId)
+    const nextIndex = currentIndex + direction
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= steps.length) return
+    const reordered = [...steps]
+    const [item] = reordered.splice(currentIndex, 1)
+    reordered.splice(nextIndex, 0, item)
     try {
       await reorderSteps.mutateAsync({
-        stepIds: ranked
-          .sort((left, right) => left.order - right.order)
-          .map((item) => item.id),
+        stepIds: reordered.map((step) => step.id),
       })
       setError('')
     } catch (caught) {
@@ -312,85 +329,42 @@ function WorkoutProgramsPage() {
     <div>
       <div className="section-header">
         <div>
-          <div className="small-label">Wellness</div>
+          <div className="small-label">EVENTUM CLUBS</div>
           <h2 style={{ margin: '4px 0 0' }}>Программы тренировок</h2>
+          <p className="page-intro">
+            Сначала создайте карточку программы, потом добавьте шаги таймера:
+            разминка, работа, отдых, заминка.
+          </p>
         </div>
       </div>
 
       <div className="panel">
+        <div className="form-section-title">
+          {editingId ? 'Редактирование программы' : 'Новая программа'}
+        </div>
         <form className="form-grid" onSubmit={handleProgramSubmit}>
-          <div>
-            <div className="form-section-title">Стабильный ID (slug)</div>
-            <input
-              className="input"
-              value={programForm.id}
-              disabled={Boolean(editingId)}
-              placeholder="home-full"
-              onChange={(event) =>
-                setProgramForm({ ...programForm, id: event.target.value })
-              }
-            />
-          </div>
-          <div>
+          <div style={{ gridColumn: '1 / -1' }}>
             <div className="form-section-title">Название</div>
             <input
               className="input"
               value={programForm.title}
-              onChange={(event) =>
-                setProgramForm({ ...programForm, title: event.target.value })
-              }
+              placeholder="Например: Функциональный старт"
+              onChange={(event) => handleTitleChange(event.target.value)}
             />
           </div>
           <div>
-            <div className="form-section-title">Подзаголовок</div>
+            <div className="form-section-title">Короткий подзаголовок</div>
             <input
               className="input"
               value={programForm.subtitle}
+              placeholder="Например: 15 минут дома"
               onChange={(event) =>
                 setProgramForm({ ...programForm, subtitle: event.target.value })
               }
             />
           </div>
           <div>
-            <div className="form-section-title">Иконка / ключ</div>
-            <input
-              className="input"
-              value={programForm.iconKey}
-              onChange={(event) =>
-                setProgramForm({ ...programForm, iconKey: event.target.value })
-              }
-            />
-          </div>
-          <div>
-            <div className="form-section-title">Цвет начала</div>
-            <input
-              className="input"
-              value={programForm.gradientStart}
-              placeholder="#E8F5EC"
-              onChange={(event) =>
-                setProgramForm({
-                  ...programForm,
-                  gradientStart: event.target.value,
-                })
-              }
-            />
-          </div>
-          <div>
-            <div className="form-section-title">Цвет конца</div>
-            <input
-              className="input"
-              value={programForm.gradientEnd}
-              placeholder="#86EFAC"
-              onChange={(event) =>
-                setProgramForm({
-                  ...programForm,
-                  gradientEnd: event.target.value,
-                })
-              }
-            />
-          </div>
-          <div>
-            <div className="form-section-title">Оценка, мин.</div>
+            <div className="form-section-title">Сколько минут займёт</div>
             <input
               className="input"
               type="number"
@@ -405,36 +379,47 @@ function WorkoutProgramsPage() {
             />
           </div>
           <div>
-            <div className="form-section-title">Порядок</div>
-            <input
-              className="input"
-              type="number"
-              value={programForm.sortOrder}
-              onChange={(event) =>
-                setProgramForm({ ...programForm, sortOrder: event.target.value })
+            <div className="form-section-title">Иконка</div>
+            <Select
+              value={programForm.iconKey}
+              onChange={(iconKey) =>
+                setProgramForm({ ...programForm, iconKey })
               }
+              options={
+                iconOptions.some((option) => option.value === programForm.iconKey)
+                  ? iconOptions
+                  : [
+                      ...iconOptions,
+                      {
+                        value: programForm.iconKey,
+                        label: `Текущая: ${programForm.iconKey}`,
+                      },
+                    ]
+              }
+              fullWidth
             />
           </div>
           <div>
-            <div className="form-section-title">Активна</div>
+            <div className="form-section-title">Показывать в приложении</div>
             <Select
               value={programForm.isActive}
               onChange={(isActive) =>
                 setProgramForm({ ...programForm, isActive })
               }
               options={[
-                { value: 'true', label: 'Да' },
-                { value: 'false', label: 'Нет' },
+                { value: 'true', label: 'Да, опубликовать' },
+                { value: 'false', label: 'Нет, скрыть' },
               ]}
               fullWidth
             />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
-            <div className="form-section-title">Описание карточки</div>
+            <div className="form-section-title">Описание для карточки</div>
             <textarea
               className="textarea"
               rows={3}
               value={programForm.description}
+              placeholder="Коротко объясните, для кого эта тренировка и что будет внутри."
               onChange={(event) =>
                 setProgramForm({
                   ...programForm,
@@ -443,17 +428,132 @@ function WorkoutProgramsPage() {
               }
             />
           </div>
+          <div>
+            <div className="form-section-title">Цвет начала</div>
+            <div className="color-field">
+              <input
+                type="color"
+                value={programForm.gradientStart || '#E8F5EC'}
+                onChange={(event) =>
+                  setProgramForm({
+                    ...programForm,
+                    gradientStart: event.target.value,
+                  })
+                }
+              />
+              <input
+                className="input"
+                value={programForm.gradientStart}
+                onChange={(event) =>
+                  setProgramForm({
+                    ...programForm,
+                    gradientStart: event.target.value,
+                  })
+                }
+              />
+            </div>
+          </div>
+          <div>
+            <div className="form-section-title">Цвет конца</div>
+            <div className="color-field">
+              <input
+                type="color"
+                value={programForm.gradientEnd || '#86EFAC'}
+                onChange={(event) =>
+                  setProgramForm({
+                    ...programForm,
+                    gradientEnd: event.target.value,
+                  })
+                }
+              />
+              <input
+                className="input"
+                value={programForm.gradientEnd}
+                onChange={(event) =>
+                  setProgramForm({
+                    ...programForm,
+                    gradientEnd: event.target.value,
+                  })
+                }
+              />
+            </div>
+          </div>
           <div style={{ gridColumn: '1 / -1' }}>
-            <div className="form-section-title">Legacy-гайд (опционально)</div>
-            <textarea
-              className="textarea"
-              rows={5}
-              value={programForm.guide}
-              onChange={(event) =>
-                setProgramForm({ ...programForm, guide: event.target.value })
-              }
+            <div className="form-section-title">Как будет выглядеть фон</div>
+            <div
+              className="gradient-preview"
+              style={{
+                background: `linear-gradient(135deg, ${programForm.gradientStart || '#E8F5EC'}, ${programForm.gradientEnd || '#86EFAC'})`,
+              }}
             />
           </div>
+
+          <div className="advanced-block">
+            <button
+              className="advanced-toggle"
+              type="button"
+              onClick={() => setShowAdvanced((value) => !value)}
+            >
+              {showAdvanced
+                ? 'Скрыть дополнительные настройки'
+                : 'Показать дополнительные настройки'}
+            </button>
+            {showAdvanced ? (
+              <div className="form-grid" style={{ marginTop: 12 }}>
+                <div>
+                  <div className="form-section-title">Технический код</div>
+                  <input
+                    className="input"
+                    value={programForm.id}
+                    disabled={Boolean(editingId)}
+                    placeholder="home-full"
+                    onChange={(event) => {
+                      setIdTouched(true)
+                      setProgramForm({
+                        ...programForm,
+                        id: event.target.value,
+                      })
+                    }}
+                  />
+                  <p className="field-hint">
+                    Создаётся сам из названия. После сохранения менять нельзя.
+                  </p>
+                </div>
+                <div>
+                  <div className="form-section-title">Порядок в списке</div>
+                  <input
+                    className="input"
+                    type="number"
+                    value={programForm.sortOrder}
+                    onChange={(event) =>
+                      setProgramForm({
+                        ...programForm,
+                        sortOrder: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div className="form-section-title">
+                    Старый текст-гайд (необязательно)
+                  </div>
+                  <textarea
+                    className="textarea"
+                    rows={4}
+                    value={programForm.guide}
+                    placeholder="Если приложение ещё читает старый текстовый гайд — можно оставить его здесь."
+                    onChange={(event) =>
+                      setProgramForm({
+                        ...programForm,
+                        guide: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           <div
             style={{
               gridColumn: '1 / -1',
@@ -467,7 +567,7 @@ function WorkoutProgramsPage() {
                 ? 'Сохранение...'
                 : editingId
                   ? 'Сохранить программу'
-                  : 'Добавить программу'}
+                  : 'Создать и добавить шаги'}
             </button>
             {editingId ? (
               <button
@@ -487,9 +587,9 @@ function WorkoutProgramsPage() {
           <div className="section-header">
             <div>
               <div className="form-section-title">
-                Шаги: {selectedProgram?.title || editingId}
+                Шаги таймера: {selectedProgram?.title || editingId}
               </div>
-              <div>
+              <p className="field-hint">
                 {steps.length} шагов ·{' '}
                 {formatDuration(
                   steps.reduce(
@@ -497,13 +597,13 @@ function WorkoutProgramsPage() {
                     0,
                   ),
                 )}
-              </div>
+              </p>
             </div>
           </div>
 
           <form className="form-grid" onSubmit={handleStepSubmit}>
             <div>
-              <div className="form-section-title">Фаза</div>
+              <div className="form-section-title">Тип шага</div>
               <Select
                 value={stepForm.phase}
                 onChange={(phase) =>
@@ -518,13 +618,14 @@ function WorkoutProgramsPage() {
               <input
                 className="input"
                 value={stepForm.title}
+                placeholder="Например: Отжимания"
                 onChange={(event) =>
                   setStepForm({ ...stepForm, title: event.target.value })
                 }
               />
             </div>
             <div>
-              <div className="form-section-title">Длительность, сек.</div>
+              <div className="form-section-title">Длительность, секунды</div>
               <input
                 className="input"
                 type="number"
@@ -537,26 +638,17 @@ function WorkoutProgramsPage() {
                   })
                 }
               />
-            </div>
-            <div>
-              <div className="form-section-title">Индекс позы (0–5)</div>
-              <input
-                className="input"
-                type="number"
-                min={0}
-                max={5}
-                value={stepForm.poseIndex}
-                onChange={(event) =>
-                  setStepForm({ ...stepForm, poseIndex: event.target.value })
-                }
-              />
+              <p className="field-hint">
+                60 = 1 минута, 90 = 1,5 минуты.
+              </p>
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
-              <div className="form-section-title">Описание</div>
+              <div className="form-section-title">Подсказка пользователю</div>
               <textarea
                 className="textarea"
                 rows={3}
                 value={stepForm.description}
+                placeholder="Как правильно выполнить шаг."
                 onChange={(event) =>
                   setStepForm({
                     ...stepForm,
@@ -566,15 +658,16 @@ function WorkoutProgramsPage() {
               />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
-              <div className="form-section-title">
-                Иллюстрация (JPEG, PNG, WebP или GIF; до 5 МБ)
-              </div>
+              <div className="form-section-title">Картинка шага</div>
               <input
                 className="input"
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 onChange={handleIllustrationChange}
               />
+              <p className="field-hint">
+                Необязательно. JPG, PNG, WebP или GIF до 5 МБ.
+              </p>
             </div>
             <div
               style={{
@@ -607,30 +700,37 @@ function WorkoutProgramsPage() {
             <thead>
               <tr>
                 <th>Порядок</th>
-                <th>Фаза</th>
+                <th>Тип</th>
                 <th>Шаг</th>
                 <th>Время</th>
-                <th>Иллюстрация</th>
+                <th>Картинка</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {steps.map((step) => (
+              {steps.map((step, index) => (
                 <tr key={step.id}>
                   <td>
-                    <input
-                      className="input"
-                      style={{ width: 80 }}
-                      type="number"
-                      min={1}
-                      value={orderValues[step.id] ?? String(step.order)}
-                      onChange={(event) =>
-                        setOrderValues({
-                          ...orderValues,
-                          [step.id]: event.target.value,
-                        })
-                      }
-                    />
+                    <div className="table-actions">
+                      <button
+                        className="button button-muted"
+                        type="button"
+                        disabled={index === 0 || reorderSteps.isPending}
+                        onClick={() => moveStep(step.id, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className="button button-muted"
+                        type="button"
+                        disabled={
+                          index === steps.length - 1 || reorderSteps.isPending
+                        }
+                        onClick={() => moveStep(step.id, 1)}
+                      >
+                        ↓
+                      </button>
+                    </div>
                   </td>
                   <td>{phaseLabels[step.phase]}</td>
                   <td>{step.title}</td>
@@ -673,25 +773,11 @@ function WorkoutProgramsPage() {
               ))}
               {steps.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>Шагов пока нет</td>
+                  <td colSpan={6}>Шагов пока нет — добавьте первый выше.</td>
                 </tr>
               ) : null}
             </tbody>
           </table>
-          {steps.length > 1 ? (
-            <div style={{ marginTop: 10, textAlign: 'right' }}>
-              <button
-                className="button"
-                type="button"
-                disabled={reorderSteps.isPending}
-                onClick={handleReorder}
-              >
-                {reorderSteps.isPending
-                  ? 'Сохранение...'
-                  : 'Применить порядок'}
-              </button>
-            </div>
-          ) : null}
         </div>
       ) : null}
 
@@ -700,56 +786,53 @@ function WorkoutProgramsPage() {
       ) : null}
 
       <div className="panel" style={{ marginTop: 16 }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Программа</th>
-              <th>ID</th>
-              <th>Статус</th>
-              <th>Порядок</th>
-              <th>Шаги</th>
-              <th>Длительность</th>
-              <th>Просмотрели (уник.)</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {programs?.map((program) => (
-              <tr key={program.id}>
-                <td>{program.title}</td>
-                <td>{program.id}</td>
-                <td>{program.isActive ? 'Активна' : 'Скрыта'}</td>
-                <td>{program.sortOrder}</td>
-                <td>{program.stepCount}</td>
-                <td>{formatDuration(program.totalDurationSeconds)}</td>
-                <td>{program.uniqueViewerCount}</td>
-                <td className="text-right">
-                  <div className="table-actions">
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={() => startEditingProgram(program)}
-                    >
-                      Редактировать
-                    </button>
-                    <button
-                      className="button button-danger"
-                      type="button"
-                      onClick={() => handleDeleteProgram(program)}
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!isLoading && programs?.length === 0 ? (
-              <tr>
-                <td colSpan={8}>Программ пока нет</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+        <div className="form-section-title">Все программы</div>
+        {isLoading ? <p className="field-hint">Загрузка...</p> : null}
+        {!isLoading && programs?.length === 0 ? (
+          <p className="field-hint">
+            Пока пусто — создайте первую программу выше.
+          </p>
+        ) : null}
+        <div className="content-card-grid" style={{ marginTop: 12 }}>
+          {programs?.map((program) => (
+            <article key={program.id} className="content-card">
+              <div
+                className="content-card-media"
+                style={{
+                  background: `linear-gradient(135deg, ${program.gradientStart || '#E8F5EC'}, ${program.gradientEnd || '#86EFAC'})`,
+                }}
+              />
+              <div className="content-card-body">
+                <h3 className="content-card-title">{program.title}</h3>
+                <div className="content-card-meta">
+                  {program.subtitle || 'Без подзаголовка'} ·{' '}
+                  {program.isActive ? 'видна' : 'скрыта'}
+                </div>
+                <div className="content-card-meta">
+                  {program.stepCount} шагов ·{' '}
+                  {formatDuration(program.totalDurationSeconds)} · смотрели{' '}
+                  {program.uniqueViewerCount}
+                </div>
+                <div className="table-actions" style={{ marginTop: 'auto' }}>
+                  <button
+                    className="button"
+                    type="button"
+                    onClick={() => startEditingProgram(program)}
+                  >
+                    Открыть
+                  </button>
+                  <button
+                    className="button button-danger"
+                    type="button"
+                    onClick={() => handleDeleteProgram(program)}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
     </div>
   )

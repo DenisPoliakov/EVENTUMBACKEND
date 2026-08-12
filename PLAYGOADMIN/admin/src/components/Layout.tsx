@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { api } from '../api/client'
-import type { Sport } from '../types'
+import { AdminProductProvider, type AdminProductCode } from '../productContext'
 
 const footballNavItems = [
   { to: '/stadiums', label: 'Стадионы' },
@@ -11,11 +10,15 @@ const footballNavItems = [
   { to: '/registrations', label: 'Заявки' },
 ]
 
-const ecosystemNavItems = [
+const clubsNavItems = [
   { to: '/clubs', label: 'Клубы и залы' },
+  { to: '/coach-club-links', label: 'Заявки тренеров' },
   { to: '/subscription-plans', label: 'Абонементы' },
   { to: '/subscriptions', label: 'Оплаты' },
   { to: '/bookings', label: 'Бронирования' },
+  { to: '/wellness-stories', label: 'Wellness-истории' },
+  { to: '/workout-programs', label: 'Программы тренировок' },
+  { to: '/workout-analytics', label: 'Аналитика тренировок' },
 ]
 
 const commonNavItems = [
@@ -25,123 +28,112 @@ const commonNavItems = [
   { to: '/cities', label: 'Города' },
   { to: '/users', label: 'Пользователи' },
   { to: '/news', label: 'Новости' },
-  { to: '/wellness-stories', label: 'Wellness-истории' },
-  { to: '/workout-programs', label: 'Программы тренировок' },
-  { to: '/workout-analytics', label: 'Аналитика тренировок' },
   { to: '/push-campaigns', label: 'Push-кампании' },
   { to: '/support', label: 'Поддержка' },
-  { to: '/sports', label: 'Виды спорта' },
 ]
 
-const fallbackSports: Sport[] = [
-  { id: 'football', code: 'FOOTBALL', name: 'Футбол' },
-  { id: 'boxing', code: 'BOXING', name: 'Бокс' },
-]
+const products = [
+  { code: 'FOOTBALL', name: 'EVENTUM FOOTBALL', icon: '⚽' },
+  { code: 'CLUBS', name: 'EVENTUM CLUBS', icon: '🥊' },
+] as const
+
+const initialProduct = (): AdminProductCode => {
+  const saved = localStorage.getItem('admin_selected_product')
+  if (saved === 'FOOTBALL' || saved === 'CLUBS') return saved
+  return localStorage.getItem('admin_selected_sport') === 'FOOTBALL'
+    ? 'FOOTBALL'
+    : 'CLUBS'
+}
 
 function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const [sports, setSports] = useState<Sport[]>(fallbackSports)
-  const [selectedSportCode, setSelectedSportCode] = useState(
-    () => localStorage.getItem('admin_selected_sport') || 'FOOTBALL',
-  )
-
-  useEffect(() => {
-    const loadSports = async () => {
-      try {
-        const res = await api.get('/sports')
-        const loaded = res.data as Sport[]
-        if (loaded.length) {
-          setSports(loaded)
-          if (!loaded.some((sport) => sport.code === selectedSportCode)) {
-            setSelectedSportCode(loaded[0].code)
-            localStorage.setItem('admin_selected_sport', loaded[0].code)
-          }
-        }
-      } catch {
-        setSports(fallbackSports)
-      }
-    }
-    loadSports()
-  }, [selectedSportCode])
-
-  const selectedSport = sports.find((sport) => sport.code === selectedSportCode) || sports[0]
-  const sportNavItems = selectedSportCode === 'FOOTBALL' ? footballNavItems : ecosystemNavItems
+  const [selectedProductCode, setSelectedProductCode] =
+    useState<AdminProductCode>(initialProduct)
+  const selectedProduct =
+    products.find((product) => product.code === selectedProductCode) || products[0]
+  const productNavItems =
+    selectedProductCode === 'FOOTBALL' ? footballNavItems : clubsNavItems
   const allowedRoutes = useMemo(
-    () => new Set([...sportNavItems, ...commonNavItems].map((item) => item.to)),
-    [sportNavItems],
+    () => new Set([...productNavItems, ...commonNavItems].map((item) => item.to)),
+    [productNavItems],
   )
 
   useEffect(() => {
     if (allowedRoutes.has(location.pathname)) return
-    navigate(selectedSportCode === 'FOOTBALL' ? '/stadiums' : '/clubs', { replace: true })
-  }, [allowedRoutes, location.pathname, navigate, selectedSportCode])
+    navigate(selectedProductCode === 'FOOTBALL' ? '/stadiums' : '/clubs', {
+      replace: true,
+    })
+  }, [allowedRoutes, location.pathname, navigate, selectedProductCode])
 
-  const handleSportChange = (code: string) => {
-    setSelectedSportCode(code)
-    localStorage.setItem('admin_selected_sport', code)
+  const handleProductChange = (code: AdminProductCode) => {
+    setSelectedProductCode(code)
+    localStorage.setItem('admin_selected_product', code)
+    localStorage.removeItem('admin_selected_sport')
     navigate(code === 'FOOTBALL' ? '/stadiums' : '/clubs')
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="logo-block">
-          <span style={{ fontSize: 22 }}>⚽</span>
+    <AdminProductProvider value={selectedProductCode}>
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="logo-block">
+            <span style={{ fontSize: 22 }}>{selectedProduct.icon}</span>
+            <div>
+              <div>EVENTUM Admin</div>
+              <div style={{ color: '#8da2b5', fontSize: 12 }}>единая экосистема</div>
+            </div>
+          </div>
           <div>
-            <div>PlayGo Admin</div>
-            <div style={{ color: '#8da2b5', fontSize: 12 }}>управление eventum</div>
+            <div className="small-label" style={{ marginBottom: 8 }}>Текущий сервис</div>
+            <div className="active-sport-card">
+              <div>{selectedProduct.name}</div>
+              <span>{selectedProduct.code}</span>
+            </div>
           </div>
-        </div>
-        <div>
-          <div className="small-label" style={{ marginBottom: 8 }}>Разделы спорта</div>
-          <div className="active-sport-card">
-            <div>{selectedSport?.name || 'Вид спорта'}</div>
-            <span>{selectedSport?.code || 'SPORT'}</span>
-          </div>
-        </div>
-        <ul className="nav-list">
-          {sportNavItems.map((item) => (
-            <li key={item.to} className="nav-item">
-              <NavLink to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
-                {item.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-        <div className="nav-divider" />
-        <ul className="nav-list">
-          {commonNavItems.map((item) => (
-            <li key={item.to} className="nav-item">
-              <NavLink to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
-                {item.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </aside>
-      <main className="main">
-        <div className="sport-switcher">
-          <div>
-            <div className="small-label">Текущий вид спорта</div>
-            <strong>{selectedSport?.name || 'Футбол'}</strong>
-          </div>
-          <div className="sport-tabs">
-            {sports.map((sport) => (
-              <button
-                key={sport.id}
-                type="button"
-                className={`sport-tab ${sport.code === selectedSportCode ? 'active' : ''}`}
-                onClick={() => handleSportChange(sport.code)}
-              >
-                {sport.name}
-              </button>
+          <ul className="nav-list">
+            {productNavItems.map((item) => (
+              <li key={item.to} className="nav-item">
+                <NavLink to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
+                  {item.label}
+                </NavLink>
+              </li>
             ))}
+          </ul>
+          <div className="nav-divider" />
+          <ul className="nav-list">
+            {commonNavItems.map((item) => (
+              <li key={item.to} className="nav-item">
+                <NavLink to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
+                  {item.label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </aside>
+        <main className="main">
+          <div className="sport-switcher">
+            <div>
+              <div className="small-label">Текущий сервис</div>
+              <strong>{selectedProduct.name}</strong>
+            </div>
+            <div className="sport-tabs">
+              {products.map((product) => (
+                <button
+                  key={product.code}
+                  type="button"
+                  className={`sport-tab ${product.code === selectedProductCode ? 'active' : ''}`}
+                  onClick={() => handleProductChange(product.code)}
+                >
+                  {product.name}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-        {children}
-      </main>
-    </div>
+          {children}
+        </main>
+      </div>
+    </AdminProductProvider>
   )
 }
 

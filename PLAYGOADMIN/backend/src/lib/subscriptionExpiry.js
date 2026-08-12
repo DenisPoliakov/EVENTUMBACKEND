@@ -1,5 +1,6 @@
 import { config } from '../config.js'
 import prisma from '../prisma.js'
+import { formatHumanDateRu } from './dates.js'
 import { createNotificationWithPush } from './pushNotifications.js'
 
 const addDays = (date, days) =>
@@ -13,7 +14,7 @@ const notifySubscription = (kind, subscription, title) =>
     userId: subscription.userId,
     type: 'SUBSCRIPTION_EXPIRING',
     title: 'Подписка скоро закончится',
-    body: `"${title}" действует до ${subscription.expiresAt.toISOString()}.`,
+    body: `«${title}» действует до ${formatHumanDateRu(subscription.expiresAt)}. Не забудьте продлить, чтобы ничего не потерять.`,
     dedupeKey: expiryDedupeKey(kind, subscription),
     data: {
       subscriptionId: subscription.id,
