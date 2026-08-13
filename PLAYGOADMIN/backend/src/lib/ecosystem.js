@@ -270,11 +270,37 @@ export const clubInclude = {
   sport: true,
   city: true,
   coachProfiles: {
-    include: { user: true },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          phone: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
     orderBy: [{ experienceYears: 'desc' }, { createdAt: 'asc' }],
   },
   schedules: {
-    include: { coachProfile: { include: { user: true } } },
+    include: {
+      coachProfile: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              phone: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      },
+    },
     orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
   },
   plans: {
@@ -284,7 +310,16 @@ export const clubInclude = {
 }
 
 export const coachProfileInclude = {
-  user: true,
+  user: {
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      phone: true,
+      firstName: true,
+      lastName: true,
+    },
+  },
   club: {
     include: {
       city: true,
