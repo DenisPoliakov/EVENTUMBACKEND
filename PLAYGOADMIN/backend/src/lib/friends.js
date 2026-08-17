@@ -1,6 +1,7 @@
 import prisma from '../prisma.js'
 import { createOrGetDirectChat, findDirectChatIdForPair, serializeChatUser } from './chats.js'
 import { createNotificationWithPush } from './pushNotifications.js'
+import { resolveFriendshipFlag } from './privacy.js'
 
 export const displayUserName = (user) => {
   const full = `${user?.firstName || ''} ${user?.lastName || ''}`.trim()
@@ -11,6 +12,7 @@ export const displayUserName = (user) => {
 }
 
 const friendshipUserInclude = {
+  city: true,
   coachProfile: {
     include: {
       club: {
@@ -57,13 +59,18 @@ export const findFriendshipBetween = async (leftUserId, rightUserId) =>
     include: friendshipInclude,
   })
 
-export const serializePublicUser = (user) => serializeChatUser(user)
+export const serializePublicUser = async (user, viewerId = null) => {
+  if (!user) return null
+  if (!viewerId) return serializeChatUser(user, { isSelf: false, isFriend: false })
+  const flags = await resolveFriendshipFlag(viewerId, user.id)
+  return serializeChatUser(user, flags)
+}
 
-export const serializeFriendship = async (friendship, currentUserId) => {
+export const serializeFriendship = async (friendship, currentUserId, productCode = 'FOOTBALL') => {
   const otherUser = getOtherFriendshipUser(friendship, currentUserId)
   const chatId =
     friendship.status === 'ACCEPTED' && otherUser
-      ? await findDirectChatIdForPair(currentUserId, otherUser.id)
+      ? await findDirectChatIdForPair(currentUserId, otherUser.id, productCode)
       : null
 
   return {
@@ -75,23 +82,27 @@ export const serializeFriendship = async (friendship, currentUserId) => {
     createdAt: friendship.createdAt,
     updatedAt: friendship.updatedAt,
     respondedAt: friendship.respondedAt,
-    user: otherUser ? serializePublicUser(otherUser) : null,
+    user: otherUser ? await serializePublicUser(otherUser, currentUserId) : null,
     chatId,
+    productCode,
   }
 }
 
-export const serializeUserSearchHit = async (user, currentUserId) => {
+export const serializeUserSearchHit = async (user, currentUserId, productCode = 'FOOTBALL') => {
   const friendship = await findFriendshipBetween(currentUserId, user.id)
   const relation = friendshipRelationFor(friendship, currentUserId)
   const chatId =
-    relation === 'FRIENDS' ? await findDirectChatIdForPair(currentUserId, user.id) : null
+    relation === 'FRIENDS'
+      ? await findDirectChatIdForPair(currentUserId, user.id, productCode)
+      : null
 
   return {
-    user: serializePublicUser(user),
+    user: await serializePublicUser(user, currentUserId),
     friendshipId: friendship?.id || null,
     friendshipStatus: friendship?.status || null,
     relation,
     chatId,
+    productCode,
   }
 }
 
@@ -187,7 +198,7 @@ const notifyFriendAccepted = async (friendship, acceptedByUserId) => {
   })
 }
 
-export const requestFriendship = async (currentUserId, targetUserId) => {
+export const requestFriendship = async (currentUserId, targetUserId, productCode = 'FOOTBALL') => {
   const target = await ensureTargetUser(targetUserId, currentUserId)
   const existing = await findFriendshipBetween(currentUserId, target.id)
 
@@ -212,7 +223,7 @@ export const requestFriendship = async (currentUserId, targetUserId) => {
       },
       include: friendshipInclude,
     })
-    await createOrGetDirectChat(currentUserId, target.id)
+    await createOrGetDirectChat(currentUserId, target.id, productCode)
     await notifyFriendAccepted(accepted, currentUserId)
     return accepted
   }
@@ -253,7 +264,7 @@ export const requestFriendship = async (currentUserId, targetUserId) => {
   }
 }
 
-export const acceptFriendship = async (friendshipId, currentUserId) => {
+export const acceptFriendship = async (friendshipId, currentUserId, productCode = 'FOOTBALL') => {
   const friendship = await prisma.friendship.findUnique({
     where: { id: friendshipId },
     include: friendshipInclude,
@@ -282,7 +293,7 @@ export const acceptFriendship = async (friendshipId, currentUserId) => {
     },
     include: friendshipInclude,
   })
-  await createOrGetDirectChat(currentUserId, friendship.requesterId)
+  await createOrGetDirectChat(currentUserId, friendship.requesterId, productCode)
   await notifyFriendAccepted(accepted, currentUserId)
   return accepted
 }
@@ -330,7 +341,37 @@ export const removeFriendship = async (currentUserId, otherUserId) => {
   return friendship
 }
 
-export const searchUsersByUsername = async ({ query, currentUserId, limit }) => {
+/** Cancel outgoing pending request or delete friendship by friendship id. */
+export const cancelFriendshipById = async (friendshipId, currentUserId) => {
+  const friendship = await prisma.friendship.findUnique({
+    where: { id: friendshipId },
+    include: friendshipInclude,
+  })
+  if (!friendship) {
+    const error = new Error('Friendship not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  const isParticipant =
+    friendship.requesterId === currentUserId || friendship.addresseeId === currentUserId
+  if (!isParticipant) {
+    const error = new Error('Friendship not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  if (friendship.status === 'PENDING' && friendship.requesterId !== currentUserId) {
+    const error = new Error('Only the requester can cancel this pending request')
+    error.statusCode = 403
+    throw error
+  }
+
+  await prisma.friendship.delete({ where: { id: friendship.id } })
+  return friendship
+}
+
+export const searchUsersByUsername = async ({ query, currentUserId, limit, productCode = 'FOOTBALL' }) => {
   const q = String(query || '').trim()
   if (q.length < 1) {
     const error = new Error('username or q is required')
@@ -354,5 +395,7 @@ export const searchUsersByUsername = async ({ query, currentUserId, limit }) => 
     include: friendshipUserInclude,
   })
 
-  return Promise.all(users.map((user) => serializeUserSearchHit(user, currentUserId)))
+  return Promise.all(
+    users.map((user) => serializeUserSearchHit(user, currentUserId, productCode)),
+  )
 }

@@ -4,10 +4,12 @@ import { verifyToken } from './auth.js'
 import {
   buildChatLastReadPatch,
   createChatTextMessage,
+  editChatTextMessage,
   getDirectChatByIdForUser,
   getDirectChatInclude,
   serializeChatMessage,
   serializeDirectChat,
+  softDeleteChatMessage,
 } from './chats.js'
 
 const clientsByUserId = new Map()
@@ -128,6 +130,53 @@ export const broadcastChatRead = async ({ chatId, userId, readAt }) => {
   )
 }
 
+export const broadcastChatMessageUpdated = async ({ chatId, message }) => {
+  const chat = await prisma.directChat.findUnique({
+    where: { id: chatId },
+    include: getDirectChatInclude(),
+  })
+  if (!chat) return
+
+  await Promise.all(
+    getParticipantIds(chat).map(async (userId) => {
+      sendToUser(userId, {
+        type: 'chat:message:updated',
+        chatId: chat.id,
+        message: serializeChatMessage(message),
+        chat: await serializeDirectChat(chat, userId),
+      })
+    }),
+  )
+}
+
+export const broadcastChatMessageDeleted = async ({ chatId, message }) => {
+  const chat = await prisma.directChat.findUnique({
+    where: { id: chatId },
+    include: getDirectChatInclude(),
+  })
+  if (!chat) return
+
+  await Promise.all(
+    getParticipantIds(chat).map(async (userId) => {
+      sendToUser(userId, {
+        type: 'chat:message:deleted',
+        chatId: chat.id,
+        message: serializeChatMessage(message),
+        chat: await serializeDirectChat(chat, userId),
+      })
+    }),
+  )
+}
+
+export const broadcastChatDeleted = async ({ chatId, userId }) => {
+  sendToUser(userId, {
+    type: 'chat:deleted',
+    chatId,
+    userId,
+    at: new Date().toISOString(),
+  })
+}
+
 const handleMessageSend = async (ws, payload) => {
   const chatId = String(payload.chatId || '').trim()
   const text = String(payload.text || '').trim()
@@ -171,6 +220,51 @@ const handleRead = async (ws, payload) => {
   await broadcastChatRead({ chatId: chat.id, userId: ws.userId, readAt: now.toISOString() })
 }
 
+const handleMessageEdit = async (ws, payload) => {
+  const chatId = String(payload.chatId || '').trim()
+  const messageId = String(payload.messageId || '').trim()
+  const text = String(payload.text || '').trim()
+  if (!chatId || !messageId || !text) {
+    sendJson(ws, {
+      type: 'error',
+      code: 'BAD_REQUEST',
+      message: 'chatId, messageId and text are required',
+    })
+    return
+  }
+
+  const chat = await getDirectChatByIdForUser(chatId, ws.userId)
+  if (!chat) {
+    sendJson(ws, { type: 'error', code: 'CHAT_NOT_FOUND', message: 'Chat not found' })
+    return
+  }
+
+  const message = await editChatTextMessage(chat, messageId, ws.userId, text)
+  await broadcastChatMessageUpdated({ chatId: chat.id, message })
+}
+
+const handleMessageDelete = async (ws, payload) => {
+  const chatId = String(payload.chatId || '').trim()
+  const messageId = String(payload.messageId || '').trim()
+  if (!chatId || !messageId) {
+    sendJson(ws, {
+      type: 'error',
+      code: 'BAD_REQUEST',
+      message: 'chatId and messageId are required',
+    })
+    return
+  }
+
+  const chat = await getDirectChatByIdForUser(chatId, ws.userId)
+  if (!chat) {
+    sendJson(ws, { type: 'error', code: 'CHAT_NOT_FOUND', message: 'Chat not found' })
+    return
+  }
+
+  const message = await softDeleteChatMessage(chat, messageId, ws.userId)
+  await broadcastChatMessageDeleted({ chatId: chat.id, message })
+}
+
 const handleSubscribe = async (ws, payload) => {
   const chatId = String(payload.chatId || '').trim()
   if (!chatId) {
@@ -209,6 +303,14 @@ const handleIncoming = async (ws, raw) => {
     }
     if (payload.type === 'chat:message:send') {
       await handleMessageSend(ws, payload)
+      return
+    }
+    if (payload.type === 'chat:message:edit') {
+      await handleMessageEdit(ws, payload)
+      return
+    }
+    if (payload.type === 'chat:message:delete') {
+      await handleMessageDelete(ws, payload)
       return
     }
     if (payload.type === 'chat:read') {

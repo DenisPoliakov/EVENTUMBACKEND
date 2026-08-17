@@ -97,6 +97,22 @@ class ApiClient {
     return PlayerCard.fromJson(body['playerCard'] as Map<String, dynamic>);
   }
 
+  Future<String> uploadAvatar({
+    required String token,
+    required File file,
+  }) async {
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/me/avatar'),
+    );
+    req.headers['Authorization'] = 'Bearer $token';
+    req.files.add(await http.MultipartFile.fromPath('file', file.path));
+    final stream = await req.send();
+    final res = await http.Response.fromStream(stream);
+    final body = _decode(res);
+    return body['avatarUrl']?.toString() ?? body['url']?.toString() ?? '';
+  }
+
   Future<String> uploadPlayerAvatar({
     required String token,
     required File file,
@@ -110,7 +126,7 @@ class ApiClient {
     final stream = await req.send();
     final res = await http.Response.fromStream(stream);
     final body = _decode(res);
-    return body['url']?.toString() ?? '';
+    return body['avatarUrl']?.toString() ?? body['url']?.toString() ?? '';
   }
 
   Future<TeamSummary?> myTeam(String token) async {

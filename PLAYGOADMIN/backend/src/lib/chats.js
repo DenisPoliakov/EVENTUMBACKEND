@@ -1,8 +1,10 @@
 import prisma from '../prisma.js'
+import { redactUserForViewer, resolveFriendshipFlag } from './privacy.js'
 
 const directChatInclude = {
   userA: {
     include: {
+      city: true,
       coachProfile: {
         include: {
           club: {
@@ -17,6 +19,7 @@ const directChatInclude = {
   },
   userB: {
     include: {
+      city: true,
       coachProfile: {
         include: {
           club: {
@@ -30,8 +33,23 @@ const directChatInclude = {
     },
   },
   messages: {
+    where: { deletedAt: null },
     include: {
-      sender: true,
+      sender: {
+        include: {
+          city: true,
+          coachProfile: {
+            include: {
+              club: {
+                include: {
+                  city: true,
+                  sport: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: 1,
@@ -41,6 +59,7 @@ const directChatInclude = {
 export const messageInclude = {
   sender: {
     include: {
+      city: true,
       coachProfile: {
         include: {
           club: {
@@ -69,81 +88,113 @@ export const getChatLastReadAt = (chat, userId) =>
 export const buildChatLastReadPatch = (chat, userId, date = new Date()) =>
   chat.userAId === userId ? { userALastReadAt: date } : { userBLastReadAt: date }
 
-export const getOtherChatUser = (chat, userId) => (chat.userAId === userId ? chat.userB : chat.userA)
+export const buildChatDeletedPatch = (chat, userId, date = new Date()) => {
+  if (chat.isSelfChat || chat.userAId === chat.userBId) {
+    return { userADeletedAt: date, userBDeletedAt: date }
+  }
+  return chat.userAId === userId ? { userADeletedAt: date } : { userBDeletedAt: date }
+}
 
-const serializeCoachPreview = (coachProfile) =>
-  coachProfile
-    ? {
-        id: coachProfile.id,
-        clubId: coachProfile.clubId || '',
-        firstName: coachProfile.firstName,
-        lastName: coachProfile.lastName,
-        experienceYears: coachProfile.experienceYears,
-        photoUrl: coachProfile.photoUrl || '',
-        maxUrl: coachProfile.maxUrl || '',
-        telegramUrl: coachProfile.telegramUrl || '',
-        club: coachProfile.club
-          ? {
-              id: coachProfile.club.id,
-              name: coachProfile.club.name,
-              city: coachProfile.club.city?.name || '',
-              sport: coachProfile.club.sport
-                ? {
-                    id: coachProfile.club.sport.id,
-                    code: coachProfile.club.sport.code,
-                    name: coachProfile.club.sport.name,
-                  }
-                : null,
-            }
-          : null,
-      }
-    : null
+export const buildChatRestorePatch = (chat, userId) => {
+  if (chat.isSelfChat || chat.userAId === chat.userBId) {
+    return { userADeletedAt: null, userBDeletedAt: null }
+  }
+  return chat.userAId === userId ? { userADeletedAt: null } : { userBDeletedAt: null }
+}
 
-export const serializeChatUser = (user) => ({
-  id: user.id,
-  email: user.email,
-  username: user.username || '',
-  phone: user.phone || '',
-  firstName: user.firstName || '',
-  lastName: user.lastName || '',
-  isCoach: Boolean(user.coachProfile),
-  coachProfile: serializeCoachPreview(user.coachProfile),
-})
+export const isChatHiddenForUser = (chat, userId) => {
+  if (!chat) return true
+  if (chat.isSelfChat || chat.userAId === chat.userBId) {
+    return Boolean(chat.userADeletedAt || chat.userBDeletedAt)
+  }
+  return chat.userAId === userId
+    ? Boolean(chat.userADeletedAt)
+    : Boolean(chat.userBDeletedAt)
+}
 
-export const serializeChatMessage = (message) => ({
-  id: message.id,
-  chatId: message.chatId,
-  senderUserId: message.senderUserId,
-  type: message.type,
-  text: message.text,
-  createdAt: message.createdAt,
-  updatedAt: message.updatedAt,
-  sender: message.sender ? serializeChatUser(message.sender) : null,
-})
+export const getOtherChatUser = (chat, userId) => {
+  if (chat.isSelfChat || chat.userAId === chat.userBId) return chat.userA
+  return chat.userAId === userId ? chat.userB : chat.userA
+}
+
+export const serializeChatUser = (user, privacyContext = { isSelf: true, isFriend: true }) => {
+  if (!user) return null
+  const redacted = redactUserForViewer(user, privacyContext)
+  return {
+    id: redacted.id,
+    email: redacted.email,
+    username: redacted.username,
+    phone: redacted.phone,
+    firstName: redacted.firstName,
+    lastName: redacted.lastName,
+    avatarUrl: redacted.avatarUrl || '',
+    isCoach: redacted.isCoach,
+    coachProfile: redacted.coachProfile,
+    profileVisibility: redacted.profileVisibility,
+    privacy: redacted.privacy,
+  }
+}
+
+export const serializeChatMessage = (message) => {
+  const deleted = Boolean(message.deletedAt)
+  return {
+    id: message.id,
+    chatId: message.chatId,
+    senderUserId: message.senderUserId,
+    type: message.type,
+    text: deleted ? '' : message.text,
+    editedAt: message.editedAt || null,
+    deletedAt: message.deletedAt || null,
+    isDeleted: deleted,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+    sender: message.sender
+      ? serializeChatUser(message.sender, { isSelf: true, isFriend: true })
+      : null,
+  }
+}
+
+const serializeChatUserForViewer = async (user, viewerId) => {
+  if (!user) return null
+  const flags = await resolveFriendshipFlag(viewerId, user.id)
+  return serializeChatUser(user, flags)
+}
 
 export const serializeDirectChat = async (chat, currentUserId) => {
   const otherUser = getOtherChatUser(chat, currentUserId)
   const lastReadAt = getChatLastReadAt(chat, currentUserId)
   const lastMessage = chat.messages?.[0] ? serializeChatMessage(chat.messages[0]) : null
+  const isSelfChat = Boolean(chat.isSelfChat || chat.userAId === chat.userBId)
 
   const unreadCount = await prisma.chatMessage.count({
     where: {
       chatId: chat.id,
-      senderUserId: { not: currentUserId },
+      deletedAt: null,
+      senderUserId: isSelfChat ? undefined : { not: currentUserId },
       createdAt: lastReadAt ? { gt: lastReadAt } : undefined,
     },
   })
 
   return {
     id: chat.id,
+    productCode: chat.productCode || 'FOOTBALL',
+    isSelfChat,
     createdAt: chat.createdAt,
     updatedAt: chat.updatedAt,
     lastReadAt,
-    unreadCount,
-    otherUser: otherUser ? serializeChatUser(otherUser) : null,
+    unreadCount: isSelfChat ? 0 : unreadCount,
+    otherUser: await serializeChatUserForViewer(otherUser, currentUserId),
     lastMessage,
   }
 }
+
+export const participantWhereForUser = (userId, productCode) => ({
+  productCode,
+  OR: [
+    { userAId: userId, userADeletedAt: null },
+    { userBId: userId, userBDeletedAt: null },
+  ],
+})
 
 export const getDirectChatByIdForUser = async (chatId, userId) =>
   prisma.directChat.findFirst({
@@ -172,6 +223,7 @@ export const createChatTextMessage = async (chat, senderUserId, text) => {
       where: { id: chat.id },
       data: {
         ...buildChatLastReadPatch(chat, senderUserId, now),
+        ...buildChatRestorePatch(chat, senderUserId),
         updatedAt: now,
       },
     })
@@ -180,35 +232,130 @@ export const createChatTextMessage = async (chat, senderUserId, text) => {
   })
 }
 
+export const editChatTextMessage = async (chat, messageId, senderUserId, text) => {
+  const message = await prisma.chatMessage.findFirst({
+    where: {
+      id: messageId,
+      chatId: chat.id,
+      senderUserId,
+      deletedAt: null,
+    },
+  })
+  if (!message) {
+    const error = new Error('Message not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  return prisma.chatMessage.update({
+    where: { id: message.id },
+    data: {
+      text,
+      editedAt: new Date(),
+    },
+    include: messageInclude,
+  })
+}
+
+export const softDeleteChatMessage = async (chat, messageId, senderUserId) => {
+  const message = await prisma.chatMessage.findFirst({
+    where: {
+      id: messageId,
+      chatId: chat.id,
+      senderUserId,
+      deletedAt: null,
+    },
+  })
+  if (!message) {
+    const error = new Error('Message not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  return prisma.chatMessage.update({
+    where: { id: message.id },
+    data: {
+      deletedAt: new Date(),
+      text: '',
+    },
+    include: messageInclude,
+  })
+}
+
+export const softDeleteDirectChatForUser = async (chat, userId) => {
+  const now = new Date()
+  return prisma.directChat.update({
+    where: { id: chat.id },
+    data: buildChatDeletedPatch(chat, userId, now),
+    include: directChatInclude,
+  })
+}
+
 export const getDirectChatInclude = () => directChatInclude
 
-export const createOrGetDirectChat = async (currentUserId, targetUserId) => {
-  const [userAId, userBId] = normalizeDirectPair(currentUserId, targetUserId)
+export const createOrGetDirectChat = async (
+  currentUserId,
+  targetUserId,
+  productCode = 'FOOTBALL',
+  { isSelfChat = false } = {},
+) => {
+  const self = Boolean(isSelfChat || currentUserId === targetUserId)
+  const [userAId, userBId] = self
+    ? [currentUserId, currentUserId]
+    : normalizeDirectPair(currentUserId, targetUserId)
   const now = new Date()
 
-  return prisma.directChat.upsert({
+  const existing = await prisma.directChat.findUnique({
     where: {
-      userAId_userBId: {
+      userAId_userBId_productCode: {
         userAId,
         userBId,
+        productCode,
       },
     },
-    update: {
-      ...(userAId === currentUserId ? { userALastReadAt: now } : { userBLastReadAt: now }),
-    },
-    create: {
+    include: directChatInclude,
+  })
+
+  if (existing) {
+    return prisma.directChat.update({
+      where: { id: existing.id },
+      data: {
+        isSelfChat: self || existing.isSelfChat,
+        ...buildChatLastReadPatch(existing, currentUserId, now),
+        ...buildChatRestorePatch(existing, currentUserId),
+      },
+      include: directChatInclude,
+    })
+  }
+
+  return prisma.directChat.create({
+    data: {
       userAId,
       userBId,
-      ...(userAId === currentUserId ? { userALastReadAt: now } : { userBLastReadAt: now }),
+      productCode,
+      isSelfChat: self,
+      ...(userAId === currentUserId || self
+        ? { userALastReadAt: now }
+        : { userBLastReadAt: now }),
     },
     include: directChatInclude,
   })
 }
 
-export const findDirectChatIdForPair = async (leftUserId, rightUserId) => {
+export const findDirectChatIdForPair = async (
+  leftUserId,
+  rightUserId,
+  productCode = 'FOOTBALL',
+) => {
   const [userAId, userBId] = normalizeDirectPair(leftUserId, rightUserId)
   const chat = await prisma.directChat.findUnique({
-    where: { userAId_userBId: { userAId, userBId } },
+    where: {
+      userAId_userBId_productCode: {
+        userAId,
+        userBId,
+        productCode,
+      },
+    },
     select: { id: true },
   })
   return chat?.id || null

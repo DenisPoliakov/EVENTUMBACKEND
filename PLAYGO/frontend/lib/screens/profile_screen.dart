@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:playgo/models/player_card.dart';
 import 'package:playgo/models/team_models.dart';
 import 'package:playgo/models/user.dart';
+import 'package:playgo/services/api_client.dart';
 import 'package:playgo/theme/app_theme.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -14,6 +15,7 @@ class ProfileScreen extends StatelessWidget {
     required this.onOpenTeam,
     this.playerCard,
     this.team,
+    this.apiBaseUrl,
   });
 
   final User user;
@@ -23,9 +25,22 @@ class ProfileScreen extends StatelessWidget {
   final VoidCallback onOpenTeam;
   final PlayerCard? playerCard;
   final TeamSummary? team;
+  final String? apiBaseUrl;
+
+  String get _resolvedAvatarUrl {
+    final raw = user.avatarUrl.isNotEmpty
+        ? user.avatarUrl
+        : (playerCard?.avatarUrl ?? '');
+    if (raw.isEmpty) return '';
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    final base =
+        (apiBaseUrl ?? ApiClient().baseUrl).replaceAll(RegExp(r'/$'), '');
+    return '$base$raw';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final avatarUrl = _resolvedAvatarUrl;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Профиль'),
@@ -52,15 +67,19 @@ class ProfileScreen extends StatelessWidget {
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: accentColor.withOpacity(0.15),
-                    child: Text(
-                      user.username.isNotEmpty
-                          ? user.username[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: accentColor),
-                    ),
+                    backgroundImage:
+                        avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                    child: avatarUrl.isNotEmpty
+                        ? null
+                        : Text(
+                            user.username.isNotEmpty
+                                ? user.username[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: accentColor),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Column(

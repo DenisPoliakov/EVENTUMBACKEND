@@ -209,6 +209,17 @@ enum FriendshipStatus {
   REJECTED
 }
 
+enum EventumProduct {
+  FOOTBALL
+  CLUBS
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  FRIENDS
+  PRIVATE
+}
+
 enum PremiumCreditTransactionType {
   REFERRAL_REWARD
   PREMIUM_PURCHASE
@@ -277,6 +288,7 @@ model User {
   firstName               String?
   lastName                String?
   birthDate               DateTime?
+  avatarUrl               String?
   passwordHash            String
   role                    Role                     @default(USER)
   cityId                  String?
@@ -285,6 +297,12 @@ model User {
   blockReason             String?
   blockedUntil            DateTime?
   matchBanUntil           DateTime?
+  profileVisibility       ProfileVisibility        @default(PUBLIC)
+  hideEmail               Boolean                  @default(false)
+  hidePhone               Boolean                  @default(false)
+  hideBirthDate           Boolean                  @default(false)
+  hideCity                Boolean                  @default(false)
+  hideCoachContacts       Boolean                  @default(false)
   playerCard              PlayerCard?
   coachProfile            CoachProfile?
   memberships             TeamMember[]
@@ -1126,20 +1144,25 @@ model Friendship {
 }
 
 model DirectChat {
-  id              String        @id @default(uuid())
+  id              String         @id @default(uuid())
   userAId         String
-  userA           User          @relation("DirectChatUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userA           User           @relation("DirectChatUserA", fields: [userAId], references: [id], onDelete: Cascade)
   userBId         String
-  userB           User          @relation("DirectChatUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  userB           User           @relation("DirectChatUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  productCode     EventumProduct @default(FOOTBALL)
+  isSelfChat      Boolean        @default(false)
   userALastReadAt DateTime?
   userBLastReadAt DateTime?
+  userADeletedAt  DateTime?
+  userBDeletedAt  DateTime?
   messages        ChatMessage[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  @@unique([userAId, userBId])
-  @@index([userAId, updatedAt])
-  @@index([userBId, updatedAt])
+  @@unique([userAId, userBId, productCode])
+  @@index([userAId, productCode, updatedAt])
+  @@index([userBId, productCode, updatedAt])
+  @@index([productCode, updatedAt])
 }
 
 model ChatMessage {
@@ -1150,6 +1173,8 @@ model ChatMessage {
   sender       User            @relation("ChatMessageSender", fields: [senderUserId], references: [id], onDelete: Cascade)
   type         ChatMessageType @default(TEXT)
   text         String
+  editedAt     DateTime?
+  deletedAt    DateTime?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 

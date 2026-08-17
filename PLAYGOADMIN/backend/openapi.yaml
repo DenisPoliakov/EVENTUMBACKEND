@@ -1,21 +1,44 @@
   openapi: 3.0.3
   info:
-    title: EVENTUM Admin API
+    title: EVENTUM API
     description: |
-      REST API для мобильного приложения и админ-панели.
-      - Публичные и пользовательские эндпоинты под `/api` (JWT `Bearer` там, где указано).
-      - Админка: `/api/admin/*` с HTTP Basic Auth (`ADMIN_USER` / `ADMIN_PASSWORD`).
-    version: 0.1.0
+      REST API для EVENTUM Football / EVENTUM Clubs и админ-панели.
+
+      ## Продукты
+      Чаты разделены по продуктам. Передавайте заголовок:
+      `X-Eventum-Product: FOOTBALL` или `X-Eventum-Product: CLUBS`
+      (альтернатива: query/body `product` / `productCode`).
+
+      - Football не видит Clubs-чаты (например, с тренерами).
+      - Чаты с тренерами всегда в `CLUBS`.
+      - Избранное (чат с собой): `POST /api/me/chats/saved`.
+
+      ## Авторизация
+      - Пользователь: JWT `Bearer` (`accessToken` из login/register).
+      - Админка: HTTP Basic (`ADMIN_USER` / `ADMIN_PASSWORD`).
+
+      ## Swagger UI
+      Интерактивная документация: `/api/docs`  
+      Сырой OpenAPI JSON: `/api/openapi.json`
+    version: 0.2.0
 
   servers:
     - url: http://localhost:4000
       description: Локальный сервер
+    - url: http://92.246.76.150:8080
+      description: VPS demo
 
   tags:
     - name: Public
       description: Без авторизации (часть — публичный каталог)
     - name: Auth
       description: Регистрация, вход, профиль (JWT)
+    - name: Privacy
+      description: Приватность профиля (visibility и скрытие полей)
+    - name: Chats
+      description: Личные чаты, избранное, сообщения (JWT + X-Eventum-Product)
+    - name: Friends
+      description: Друзья и заявки (JWT)
     - name: Player cards
       description: Карточки футболистов
     - name: Teams
@@ -36,6 +59,36 @@
     parameters:
       IdPath:
         name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      ProductHeader:
+        name: X-Eventum-Product
+        in: header
+        required: false
+        description: FOOTBALL (по умолчанию) или CLUBS — область чатов/друзей
+        schema:
+          type: string
+          enum: [FOOTBALL, CLUBS]
+          default: FOOTBALL
+      ChatIdPath:
+        name: chatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      MessageIdPath:
+        name: messageId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      FriendshipIdPath:
+        name: friendshipId
         in: path
         required: true
         schema:
@@ -3209,11 +3262,13 @@
 
     /api/me/friends/{userId}:
       delete:
-        tags: [Auth]
-        summary: Удалить дружбу или отменить заявку
+        tags: [Friends]
+        summary: Удалить из друзей или отменить заявку по userId второго человека
+        description: Работает и для PENDING, и для ACCEPTED. Для отзыва по friendshipId см. DELETE /api/me/friends/requests/{friendshipId}.
         security: [{ bearerAuth: [] }]
         parameters:
-          - { name: userId, in: path, required: true, schema: { type: string } }
+          - $ref: '#/components/parameters/ProductHeader'
+          - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
         responses:
           '204':
             description: Удалено
@@ -3823,3 +3878,217 @@
           - $ref: '#/components/parameters/IdPath'
         responses:
           '201': { description: Заметка добавлена и не видна пользователю }
+
+    /api/me/privacy:
+      get:
+        tags: [Privacy]
+        summary: Текущие настройки приватности
+        security: [{ bearerAuth: [] }]
+        responses:
+          '200':
+            description: |
+              profileVisibility = PUBLIC | FRIENDS | PRIVATE.
+              hideEmail / hidePhone / hideBirthDate / hideCity / hideCoachContacts — точечное скрытие.
+      patch:
+        tags: [Privacy]
+        summary: Обновить приватность профиля
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profileVisibility: { type: string, enum: [PUBLIC, FRIENDS, PRIVATE] }
+                  hideEmail: { type: boolean }
+                  hidePhone: { type: boolean }
+                  hideBirthDate: { type: boolean }
+                  hideCity: { type: boolean }
+                  hideCoachContacts: { type: boolean }
+        responses:
+          '200': { description: privacy + user }
+
+    /api/me/chats:
+      get:
+        tags: [Chats]
+        summary: Список чатов текущего продукта
+        description: Без Clubs-чатов в Football и наоборот. Передавайте X-Eventum-Product.
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ProductHeader'
+          - { name: product, in: query, schema: { type: string, enum: [FOOTBALL, CLUBS] } }
+          - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        responses:
+          '200': { description: '{ productCode, chats[] }' }
+
+    /api/me/chats/saved:
+      post:
+        tags: [Chats]
+        summary: Избранное — чат с самим собой
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ProductHeader'
+        responses:
+          '201': { description: '{ chat } с isSelfChat=true' }
+
+    /api/me/chats/direct:
+      post:
+        tags: [Chats]
+        summary: Создать/открыть личный чат
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ProductHeader'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [userId]
+                properties:
+                  userId: { type: string, format: uuid }
+        responses:
+          '201': { description: '{ chat }' }
+
+    /api/me/chats/coach-profile/{coachProfileId}:
+      post:
+        tags: [Chats]
+        summary: Чат с тренером (всегда product=CLUBS)
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - name: coachProfileId
+            in: path
+            required: true
+            schema: { type: string, format: uuid }
+        responses:
+          '201': { description: '{ chat } в CLUBS' }
+
+    /api/me/chats/{chatId}:
+      get:
+        tags: [Chats]
+        summary: Один чат
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+        responses:
+          '200': { description: '{ chat }' }
+      delete:
+        tags: [Chats]
+        summary: Скрыть/удалить чат у себя (soft-delete)
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+        responses:
+          '204': { description: Чат скрыт для текущего пользователя }
+
+    /api/me/chats/{chatId}/messages:
+      get:
+        tags: [Chats]
+        summary: Сообщения чата
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - { name: limit, in: query, schema: { type: integer, default: 50 } }
+          - { name: before, in: query, schema: { type: string, format: date-time } }
+          - { name: includeDeleted, in: query, schema: { type: boolean, default: false } }
+        responses:
+          '200': { description: '{ messages[] }' }
+      post:
+        tags: [Chats]
+        summary: Отправить сообщение
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [text]
+                properties:
+                  text: { type: string }
+        responses:
+          '201': { description: '{ message }' }
+
+    /api/me/chats/{chatId}/messages/{messageId}:
+      patch:
+        tags: [Chats]
+        summary: Редактировать своё сообщение
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - $ref: '#/components/parameters/MessageIdPath'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [text]
+                properties:
+                  text: { type: string }
+        responses:
+          '200': { description: '{ message } с editedAt' }
+      delete:
+        tags: [Chats]
+        summary: Удалить своё сообщение (soft-delete)
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - $ref: '#/components/parameters/MessageIdPath'
+        responses:
+          '200': { description: '{ message } с isDeleted=true' }
+
+    /api/me/chats/{chatId}/read:
+      post:
+        tags: [Chats]
+        summary: Пометить чат прочитанным
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+        responses:
+          '200': { description: '{ chat }' }
+
+    /api/me/friends/requests/{friendshipId}:
+      delete:
+        tags: [Friends]
+        summary: Отозвать исходящую заявку (или удалить связь) по friendshipId
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/FriendshipIdPath'
+        responses:
+          '204': { description: Заявка/дружба удалена }
+
+    /api/me/avatar:
+      post:
+        tags: [Auth]
+        summary: Загрузить аватар профиля
+        description: |
+          multipart/form-data, поле `file`.
+          Сохраняет файл в `/uploads/avatars/...`, пишет путь в `User.avatarUrl`.
+          Если есть player-card — синхронизирует и её `avatarUrl`.
+          Возвращается в `GET /api/me` и login/register.
+        security: [{ bearerAuth: [] }]
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file]
+                properties:
+                  file:
+                    type: string
+                    format: binary
+        responses:
+          '201':
+            description: '{ url, avatarUrl, user, savedToDatabase }'
+      delete:
+        tags: [Auth]
+        summary: Удалить аватар профиля
+        security: [{ bearerAuth: [] }]
+        responses:
+          '200':
+            description: '{ avatarUrl: "", user }'

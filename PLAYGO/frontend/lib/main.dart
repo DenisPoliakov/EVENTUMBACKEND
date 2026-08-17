@@ -223,6 +223,7 @@ class _PlayGoAppState extends State<PlayGoApp> with WidgetsBindingObserver {
                     user: _user!,
                     playerCard: _playerCard,
                     team: _team,
+                    apiBaseUrl: _api.baseUrl,
                     onLogout: _logout,
                     onOpenSettings: () async {
                       final updated = await _navKey.currentState?.push<User>(

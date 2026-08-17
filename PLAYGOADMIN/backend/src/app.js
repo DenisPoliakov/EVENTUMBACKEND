@@ -1,10 +1,14 @@
 import crypto from 'crypto'
+import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
 import cors from 'cors'
 import express from 'express'
 import { rateLimit } from 'express-rate-limit'
 import morgan from 'morgan'
+import swaggerUi from 'swagger-ui-express'
+import YAML from 'yaml'
 
 import { config } from './config.js'
 import authRouter from './routes/auth.js'
@@ -57,6 +61,11 @@ const credentialsMatch = (provided, expected) => {
   )
 }
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const openapiPath = path.join(__dirname, '..', 'openapi.yaml')
+const openapiDocument = YAML.parse(fs.readFileSync(openapiPath, 'utf8'))
+
 const corsOptions = {
   origin(origin, callback) {
     if (!origin || config.corsOrigins.length === 0 || config.corsOrigins.includes(origin)) {
@@ -86,6 +95,18 @@ export const createApp = () => {
   app.use(express.json({ limit: config.jsonBodyLimit }))
   app.use(morgan(config.isProduction ? 'combined' : 'dev'))
   app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')))
+
+  app.get('/api/openapi.json', (_req, res) => {
+    res.json(openapiDocument)
+  })
+  app.use(
+    '/api/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openapiDocument, {
+      explorer: true,
+      customSiteTitle: 'EVENTUM API Docs',
+    }),
+  )
 
   app.use('/api/auth', createAuthLimiter())
   app.use('/api', publicRouter)
