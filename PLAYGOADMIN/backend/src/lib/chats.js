@@ -72,6 +72,19 @@ export const messageInclude = {
       },
     },
   },
+  replyTo: {
+    include: {
+      sender: {
+        select: {
+          id: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  },
 }
 
 export const normalizeDirectPair = (leftUserId, rightUserId) =>
@@ -137,12 +150,41 @@ export const serializeChatUser = (user, privacyContext = { isSelf: true, isFrien
 
 export const serializeChatMessage = (message) => {
   const deleted = Boolean(message.deletedAt)
+  const reply = message.replyTo
   return {
     id: message.id,
     chatId: message.chatId,
     senderUserId: message.senderUserId,
     type: message.type,
-    text: deleted ? '' : message.text,
+    text: deleted ? '' : message.text || '',
+    replyToMessageId: message.replyToMessageId || null,
+    replyTo: reply
+      ? {
+          id: reply.id,
+          type: reply.type,
+          text: reply.deletedAt ? '' : reply.text || '',
+          isDeleted: Boolean(reply.deletedAt),
+          mediaUrls: reply.deletedAt ? [] : reply.mediaUrls || [],
+          senderUserId: reply.senderUserId,
+          sender: reply.sender
+            ? {
+                id: reply.sender.id,
+                username: reply.sender.username || '',
+                firstName: reply.sender.firstName || '',
+                lastName: reply.sender.lastName || '',
+                avatarUrl: reply.sender.avatarUrl || '',
+              }
+            : null,
+        }
+      : null,
+    mediaUrls: deleted ? [] : message.mediaUrls || [],
+    mediaMimeTypes: deleted ? [] : message.mediaMimeTypes || [],
+    mediaBytes: deleted ? [] : message.mediaBytes || [],
+    durationMs: deleted ? null : message.durationMs ?? null,
+    thumbnailUrl: deleted ? '' : message.thumbnailUrl || '',
+    width: deleted ? null : message.width ?? null,
+    height: deleted ? null : message.height ?? null,
+    isRound: Boolean(message.isRound) || message.type === 'VIDEO_NOTE',
     editedAt: message.editedAt || null,
     deletedAt: message.deletedAt || null,
     isDeleted: deleted,
@@ -205,16 +247,81 @@ export const getDirectChatByIdForUser = async (chatId, userId) =>
     include: directChatInclude,
   })
 
-export const createChatTextMessage = async (chat, senderUserId, text) => {
+export const createChatTextMessage = async (chat, senderUserId, text, extras = {}) =>
+  createChatMessage(chat, senderUserId, {
+    type: 'TEXT',
+    text,
+    ...extras,
+  })
+
+export const createChatMessage = async (chat, senderUserId, payload) => {
   const now = new Date()
+  const type = payload.type || 'TEXT'
+  const text = String(payload.text || '').trim()
+  const mediaUrls = Array.isArray(payload.mediaUrls) ? payload.mediaUrls.filter(Boolean) : []
+  const mediaMimeTypes = Array.isArray(payload.mediaMimeTypes)
+    ? payload.mediaMimeTypes
+    : []
+  const mediaBytes = Array.isArray(payload.mediaBytes) ? payload.mediaBytes : []
+  const replyToMessageId = payload.replyToMessageId
+    ? String(payload.replyToMessageId).trim()
+    : null
+
+  if (type === 'TEXT' && !text) {
+    const error = new Error('text is required for TEXT messages')
+    error.statusCode = 400
+    throw error
+  }
+  if (type !== 'TEXT' && mediaUrls.length === 0) {
+    const error = new Error('media is required for media messages')
+    error.statusCode = 400
+    throw error
+  }
+  if (['IMAGE', 'VIDEO', 'ALBUM'].includes(type)) {
+    if (mediaUrls.length < 1 || mediaUrls.length > 10) {
+      const error = new Error(`${type} allows 1..10 media items per message`)
+      error.statusCode = 400
+      throw error
+    }
+  }
+  if ((type === 'VOICE' || type === 'VIDEO_NOTE') && mediaUrls.length !== 1) {
+    const error = new Error(`${type} requires exactly one media file`)
+    error.statusCode = 400
+    throw error
+  }
+
+  if (replyToMessageId) {
+    const replyTarget = await prisma.chatMessage.findFirst({
+      where: {
+        id: replyToMessageId,
+        chatId: chat.id,
+        deletedAt: null,
+      },
+      select: { id: true },
+    })
+    if (!replyTarget) {
+      const error = new Error('replyToMessageId not found in this chat')
+      error.statusCode = 400
+      throw error
+    }
+  }
 
   return prisma.$transaction(async (tx) => {
     const message = await tx.chatMessage.create({
       data: {
         chatId: chat.id,
         senderUserId,
+        type,
         text,
-        type: 'TEXT',
+        replyToMessageId,
+        mediaUrls,
+        mediaMimeTypes,
+        mediaBytes,
+        durationMs: payload.durationMs ?? null,
+        thumbnailUrl: payload.thumbnailUrl || null,
+        width: payload.width ?? null,
+        height: payload.height ?? null,
+        isRound: Boolean(payload.isRound) || type === 'VIDEO_NOTE',
       },
       include: messageInclude,
     })
@@ -276,7 +383,6 @@ export const softDeleteChatMessage = async (chat, messageId, senderUserId) => {
     where: { id: message.id },
     data: {
       deletedAt: new Date(),
-      text: '',
     },
     include: messageInclude,
   })

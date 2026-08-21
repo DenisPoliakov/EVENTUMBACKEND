@@ -3,7 +3,6 @@ import prisma from '../prisma.js'
 import { verifyToken } from './auth.js'
 import {
   buildChatLastReadPatch,
-  createChatTextMessage,
   editChatTextMessage,
   getDirectChatByIdForUser,
   getDirectChatInclude,
@@ -179,9 +178,12 @@ export const broadcastChatDeleted = async ({ chatId, userId }) => {
 
 const handleMessageSend = async (ws, payload) => {
   const chatId = String(payload.chatId || '').trim()
-  const text = String(payload.text || '').trim()
-  if (!chatId || !text) {
-    sendJson(ws, { type: 'error', code: 'BAD_REQUEST', message: 'chatId and text are required' })
+  const type = String(payload.type || 'TEXT')
+    .trim()
+    .toUpperCase()
+  const text = String(payload.text ?? payload.caption ?? '').trim()
+  if (!chatId) {
+    sendJson(ws, { type: 'error', code: 'BAD_REQUEST', message: 'chatId is required' })
     return
   }
 
@@ -191,12 +193,90 @@ const handleMessageSend = async (ws, payload) => {
     return
   }
 
-  const message = await createChatTextMessage(chat, ws.userId, text)
-  await broadcastChatMessage({
-    chatId: chat.id,
-    message,
-    clientMessageId: payload.clientMessageId,
-  })
+  const { createChatMessage } = await import('./chats.js')
+  const {
+    normalizeMessageType,
+    normalizeMediaUrlList,
+    parseDurationMs,
+    parseOptionalInt,
+    assertVideoNoteRules,
+    isAllowedChatMediaUrl,
+    assertAlbumItemCount,
+    resolveAlbumTypeFromMimes,
+    assertMimeMatchesType,
+  } = await import('./chatMedia.js')
+
+  try {
+    const typeRaw = normalizeMessageType(type)
+    const mediaUrls = normalizeMediaUrlList(payload.mediaUrls ?? payload.mediaUrl)
+    const mediaMimeTypes = normalizeMediaUrlList(payload.mediaMimeTypes)
+    const messageType =
+      typeRaw === 'TEXT' || typeRaw === 'VOICE' || typeRaw === 'VIDEO_NOTE'
+        ? typeRaw
+        : resolveAlbumTypeFromMimes(mediaMimeTypes, typeRaw)
+    const durationMs = parseDurationMs(payload.durationMs)
+    if (messageType === 'VIDEO_NOTE') {
+      assertVideoNoteRules({
+        durationMs,
+        clientPlatform: payload.clientPlatform,
+      })
+    }
+    if (messageType !== 'TEXT') {
+      if (messageType === 'VOICE' || messageType === 'VIDEO_NOTE') {
+        if (mediaUrls.length !== 1) {
+          sendJson(ws, {
+            type: 'error',
+            code: 'BAD_REQUEST',
+            message: `${messageType} requires exactly one media file`,
+          })
+          return
+        }
+      } else {
+        assertAlbumItemCount(mediaUrls.length, messageType)
+      }
+      for (const url of mediaUrls) {
+        if (!isAllowedChatMediaUrl(url, chat.id, chat.productCode)) {
+          sendJson(ws, {
+            type: 'error',
+            code: 'BAD_MEDIA_URL',
+            message: `Invalid mediaUrl for chat: ${url}`,
+          })
+          return
+        }
+      }
+      for (const mime of mediaMimeTypes) {
+        assertMimeMatchesType(messageType, mime)
+      }
+    }
+
+    const message = await createChatMessage(chat, ws.userId, {
+      type: messageType,
+      text,
+      replyToMessageId: payload.replyToMessageId || payload.replyToId || null,
+      mediaUrls: messageType === 'TEXT' ? [] : mediaUrls,
+      mediaMimeTypes: messageType === 'TEXT' ? [] : mediaMimeTypes,
+      mediaBytes: Array.isArray(payload.mediaBytes)
+        ? payload.mediaBytes.map((n) => Number(n)).filter((n) => Number.isFinite(n))
+        : [],
+      durationMs,
+      thumbnailUrl: payload.thumbnailUrl || null,
+      width: parseOptionalInt(payload.width, 'width'),
+      height: parseOptionalInt(payload.height, 'height'),
+      isRound: messageType === 'VIDEO_NOTE',
+    })
+
+    await broadcastChatMessage({
+      chatId: chat.id,
+      message,
+      clientMessageId: payload.clientMessageId,
+    })
+  } catch (err) {
+    sendJson(ws, {
+      type: 'error',
+      code: err.statusCode ? 'BAD_REQUEST' : 'INTERNAL_ERROR',
+      message: err.message || 'Failed to send message',
+    })
+  }
 }
 
 const handleRead = async (ws, payload) => {

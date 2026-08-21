@@ -201,6 +201,11 @@ enum TrainingBookingStatus {
 
 enum ChatMessageType {
   TEXT
+  IMAGE
+  VOICE
+  VIDEO
+  VIDEO_NOTE
+  ALBUM
 }
 
 enum FriendshipStatus {
@@ -1166,18 +1171,34 @@ model DirectChat {
 }
 
 model ChatMessage {
-  id           String          @id @default(uuid())
-  chatId       String
-  chat         DirectChat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  senderUserId String
-  sender       User            @relation("ChatMessageSender", fields: [senderUserId], references: [id], onDelete: Cascade)
-  type         ChatMessageType @default(TEXT)
-  text         String
-  editedAt     DateTime?
-  deletedAt    DateTime?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id               String          @id @default(uuid())
+  chatId           String
+  chat             DirectChat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  senderUserId     String
+  sender           User            @relation("ChatMessageSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+  type             ChatMessageType @default(TEXT)
+  /// Текст или подпись к медиа (опционально для IMAGE/VOICE/VIDEO/VIDEO_NOTE)
+  text             String          @default("")
+  replyToMessageId String?
+  replyTo          ChatMessage?    @relation("ChatMessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies          ChatMessage[]   @relation("ChatMessageReplies")
+  /// Один или несколько файлов (альбом фото)
+  mediaUrls        String[]        @default([])
+  mediaMimeTypes   String[]        @default([])
+  mediaBytes       Int[]           @default([])
+  /// Длительность голоса / видео / кружка (мс)
+  durationMs       Int?
+  thumbnailUrl     String?
+  width            Int?
+  height           Int?
+  /// VIDEO_NOTE — круглое видеосообщение
+  isRound          Boolean         @default(false)
+  editedAt         DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([chatId, createdAt])
   @@index([senderUserId, createdAt])
+  @@index([replyToMessageId])
 }

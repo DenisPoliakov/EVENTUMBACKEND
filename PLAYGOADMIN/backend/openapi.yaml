@@ -4092,3 +4092,57 @@
         responses:
           '200':
             description: '{ avatarUrl: "", user }'
+
+    /api/me/chats/{chatId}/media:
+      post:
+        tags: [Chats]
+        summary: Отправить медиа (фото/альбом, голос, видео, кружок)
+        description: |
+          multipart/form-data.
+          - `type`: IMAGE | VOICE | VIDEO | VIDEO_NOTE | ALBUM
+          - `files` или `file`: до **10** объектов за раз
+          - IMAGE = только фото, VIDEO = только видео, ALBUM = микс (напр. 4 фото + 6 видео)
+          - сервер сам нормализует тип по mime (микс → ALBUM)
+          - `caption`/`text`: опциональная подпись
+          - `replyToMessageId`: ответ на сообщение
+          - `durationMs`: обязателен для VIDEO_NOTE (макс 60000)
+          - `clientPlatform`: desktop/web → VIDEO_NOTE запрещён (403)
+          Файлы: `/uploads/chats/{product}/{chatId}/...`.
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - $ref: '#/components/parameters/ProductHeader'
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [type]
+                properties:
+                  type: { type: string, enum: [IMAGE, VOICE, VIDEO, VIDEO_NOTE, ALBUM] }
+                  files: { type: array, items: { type: string, format: binary }, maxItems: 10 }
+                  file: { type: string, format: binary }
+                  caption: { type: string }
+                  text: { type: string }
+                  replyToMessageId: { type: string, format: uuid }
+                  durationMs: { type: integer }
+                  width: { type: integer }
+                  height: { type: integer }
+                  clientPlatform: { type: string, example: ios }
+                  thumbnailUrl: { type: string }
+        responses:
+          '201': { description: '{ message }' }
+
+    /api/me/chats/{chatId}/media/upload:
+      post:
+        tags: [Chats]
+        summary: Только загрузить файлы (синк кеша), без сообщения
+        description: Возвращает mediaUrls — потом POST /messages с type + mediaUrls.
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - $ref: '#/components/parameters/ProductHeader'
+        responses:
+          '201': { description: '{ files[], mediaUrls[] }' }
+
