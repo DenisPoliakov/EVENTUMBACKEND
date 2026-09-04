@@ -133,6 +133,11 @@ export const getOtherChatUser = (chat, userId) => {
 export const serializeChatUser = (user, privacyContext = { isSelf: true, isFriend: true }) => {
   if (!user) return null
   const redacted = redactUserForViewer(user, privacyContext)
+  const photoUrl =
+    redacted.photoUrl ||
+    redacted.coachProfile?.photoUrl ||
+    redacted.avatarUrl ||
+    ''
   return {
     id: redacted.id,
     email: redacted.email,
@@ -140,9 +145,16 @@ export const serializeChatUser = (user, privacyContext = { isSelf: true, isFrien
     phone: redacted.phone,
     firstName: redacted.firstName,
     lastName: redacted.lastName,
-    avatarUrl: redacted.avatarUrl || '',
+    // Оба поля всегда заполняем одинаково — клиент/сокет не «теряют» аватар при replace.
+    avatarUrl: photoUrl,
+    photoUrl,
     isCoach: redacted.isCoach,
-    coachProfile: redacted.coachProfile,
+    coachProfile: redacted.coachProfile
+      ? {
+          ...redacted.coachProfile,
+          photoUrl: redacted.coachProfile.photoUrl || photoUrl,
+        }
+      : null,
     profileVisibility: redacted.profileVisibility,
     privacy: redacted.privacy,
   }
@@ -173,6 +185,7 @@ export const serializeChatMessage = (message) => {
                 firstName: reply.sender.firstName || '',
                 lastName: reply.sender.lastName || '',
                 avatarUrl: reply.sender.avatarUrl || '',
+                photoUrl: reply.sender.avatarUrl || '',
               }
             : null,
         }

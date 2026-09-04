@@ -48,12 +48,21 @@ export const redactUserForViewer = (user, { isSelf = false, isFriend = false } =
     isFriend,
   })
 
+  // Фото для чатов/аватаров: тренерское фото или обычный аватар.
+  // Не прячем в чате — иначе WS-обновление «сбрасывает» картинку у клиента.
+  const displayPhoto =
+    user.coachProfile?.photoUrl ||
+    user.avatarUrl ||
+    user.playerCard?.avatarUrl ||
+    ''
+
   const base = {
     id: user.id,
     username: user.username || '',
     firstName: canSee ? user.firstName || '' : '',
     lastName: canSee ? user.lastName || '' : '',
-    avatarUrl: canSee ? user.avatarUrl || user.playerCard?.avatarUrl || '' : '',
+    avatarUrl: displayPhoto,
+    photoUrl: displayPhoto,
     isCoach: Boolean(user.coachProfile),
     profileVisibility: privacy.profileVisibility,
   }
@@ -65,13 +74,12 @@ export const redactUserForViewer = (user, { isSelf = false, isFriend = false } =
       phone: '',
       birthDate: null,
       city: '',
-      avatarUrl: '',
       coachProfile: user.coachProfile
         ? {
             id: user.coachProfile.id,
             firstName: user.coachProfile.firstName,
             lastName: user.coachProfile.lastName,
-            photoUrl: user.coachProfile.photoUrl || '',
+            photoUrl: user.coachProfile.photoUrl || displayPhoto || '',
             club: user.coachProfile.club
               ? {
                   id: user.coachProfile.club.id,
@@ -109,7 +117,7 @@ export const redactUserForViewer = (user, { isSelf = false, isFriend = false } =
         firstName: user.coachProfile.firstName,
         lastName: user.coachProfile.lastName,
         experienceYears: user.coachProfile.experienceYears,
-        photoUrl: user.coachProfile.photoUrl || '',
+        photoUrl: user.coachProfile.photoUrl || displayPhoto || '',
         maxUrl: hideCoach ? '' : user.coachProfile.maxUrl || '',
         telegramUrl: hideCoach ? '' : user.coachProfile.telegramUrl || '',
         club: user.coachProfile.club
