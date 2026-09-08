@@ -4033,13 +4033,93 @@
           '200': { description: '{ message } с editedAt' }
       delete:
         tags: [Chats]
-        summary: Удалить своё сообщение (soft-delete)
+        summary: Удалить сообщение у себя или у обоих
+        description: |
+          `scope=me` — скрыть только у текущего пользователя (любой участник).
+          `scope=everyone` — soft-delete у обоих (только отправитель). По умолчанию `everyone`.
+          Параметр: query `scope` / `for` или JSON body `{ "scope": "me"|"everyone" }`.
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - $ref: '#/components/parameters/MessageIdPath'
+          - name: scope
+            in: query
+            schema: { type: string, enum: [me, everyone], default: everyone }
+        responses:
+          '200': { description: '{ scope, message }' }
+
+    /api/me/chats/{chatId}/messages/{messageId}/pin:
+      post:
+        tags: [Chats]
+        summary: Закрепить сообщение
         security: [{ bearerAuth: [] }]
         parameters:
           - $ref: '#/components/parameters/ChatIdPath'
           - $ref: '#/components/parameters/MessageIdPath'
         responses:
-          '200': { description: '{ message } с isDeleted=true' }
+          '200': { description: '{ message } с isPinned=true' }
+      delete:
+        tags: [Chats]
+        summary: Открепить сообщение
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - $ref: '#/components/parameters/MessageIdPath'
+        responses:
+          '200': { description: '{ message } с isPinned=false' }
+
+    /api/me/chats/{chatId}/messages/{messageId}/reactions:
+      post:
+        tags: [Chats]
+        summary: Toggle реакции (повторный emoji снимает)
+        description: |
+          Body `{ "emoji": "🔥" }`.
+          Один пользователь — до 3 разных emoji на сообщение.
+          Тот же emoji ещё раз → remove.
+          В `message.reactions[]`: emoji, count, reactedByMe, users[] (как в Telegram).
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - $ref: '#/components/parameters/MessageIdPath'
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [emoji]
+                properties:
+                  emoji: { type: string, example: "🔥" }
+        responses:
+          '200': { description: '{ action: added|removed, emoji, message }' }
+      delete:
+        tags: [Chats]
+        summary: Снять свою реакцию
+        description: Body или query `emoji`. Только свою.
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - $ref: '#/components/parameters/MessageIdPath'
+          - { name: emoji, in: query, schema: { type: string } }
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  emoji: { type: string }
+        responses:
+          '200': { description: '{ action: removed, emoji, message }' }
+
+    /api/me/chats/{chatId}/pinned-messages:
+      get:
+        tags: [Chats]
+        summary: Список закреплённых сообщений
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+        responses:
+          '200': { description: '{ messages[] }' }
 
     /api/me/chats/{chatId}/read:
       post:
@@ -4094,6 +4174,21 @@
             description: '{ avatarUrl: "", user }'
 
     /api/me/chats/{chatId}/media:
+      get:
+        tags: [Chats]
+        summary: Медиа чата (галерея)
+        description: |
+          Сообщения с файлами + плоский список `items` (каждый файл отдельно).
+          Query `type`: IMAGE | VOICE | VIDEO | VIDEO_NOTE | ALBUM | PHOTO (IMAGE+ALBUM).
+          Пагинация: `limit`, `before` (ISO datetime сообщения).
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - $ref: '#/components/parameters/ChatIdPath'
+          - { name: type, in: query, schema: { type: string } }
+          - { name: limit, in: query, schema: { type: integer, default: 50 } }
+          - { name: before, in: query, schema: { type: string, format: date-time } }
+        responses:
+          '200': { description: '{ messages[], items[] }' }
       post:
         tags: [Chats]
         summary: Отправить медиа (фото/альбом, голос, видео, кружок)

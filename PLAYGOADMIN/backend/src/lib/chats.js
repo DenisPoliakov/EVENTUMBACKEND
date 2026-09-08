@@ -1,5 +1,9 @@
 import prisma from '../prisma.js'
 import { redactUserForViewer, resolveFriendshipFlag } from './privacy.js'
+import {
+  CHAT_REACTION_MAX_PER_USER,
+  normalizeReactionEmoji,
+} from './chatReactions.js'
 
 const directChatInclude = {
   userA: {
@@ -50,6 +54,20 @@ const directChatInclude = {
           },
         },
       },
+      reactions: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: 1,
@@ -85,6 +103,56 @@ export const messageInclude = {
       },
     },
   },
+  reactions: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  },
+}
+
+const serializeReactionUser = (user) => {
+  if (!user) return null
+  const photoUrl = user.avatarUrl || ''
+  return {
+    id: user.id,
+    username: user.username || '',
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    avatarUrl: photoUrl,
+    photoUrl,
+  }
+}
+
+export const serializeMessageReactions = (reactions = [], viewerId = null) => {
+  const byEmoji = new Map()
+  for (const reaction of reactions) {
+    const emoji = reaction.emoji
+    if (!byEmoji.has(emoji)) {
+      byEmoji.set(emoji, {
+        emoji,
+        count: 0,
+        reactedByMe: false,
+        users: [],
+      })
+    }
+    const bucket = byEmoji.get(emoji)
+    bucket.count += 1
+    if (viewerId && reaction.userId === viewerId) bucket.reactedByMe = true
+    if (reaction.user) bucket.users.push(serializeReactionUser(reaction.user))
+  }
+  return [...byEmoji.values()].sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count
+    return a.emoji.localeCompare(b.emoji)
+  })
 }
 
 export const normalizeDirectPair = (leftUserId, rightUserId) =>
@@ -160,7 +228,44 @@ export const serializeChatUser = (user, privacyContext = { isSelf: true, isFrien
   }
 }
 
-export const serializeChatMessage = (message) => {
+export const CHAT_PIN_MAX = 20
+export const CHAT_MEDIA_TYPES = ['IMAGE', 'VOICE', 'VIDEO', 'VIDEO_NOTE', 'ALBUM']
+
+export const resolveMessageDeleteScope = (raw, { fallback = 'everyone' } = {}) => {
+  const value = String(raw ?? fallback)
+    .trim()
+    .toLowerCase()
+  if (['me', 'self', 'for_me', 'for-me'].includes(value)) return 'me'
+  if (['everyone', 'both', 'all', 'for_everyone', 'for-everyone'].includes(value)) {
+    return 'everyone'
+  }
+  return null
+}
+
+export const messageVisibleWhereForUser = (chat, userId) => {
+  const base = {
+    chatId: chat.id,
+    deletedAt: null,
+  }
+  if (chat.isSelfChat || chat.userAId === chat.userBId) {
+    return { ...base, hiddenForUserAAt: null }
+  }
+  if (chat.userAId === userId) {
+    return { ...base, hiddenForUserAAt: null }
+  }
+  return { ...base, hiddenForUserBAt: null }
+}
+
+const hidePatchForUser = (chat, userId, date = new Date()) => {
+  if (chat.isSelfChat || chat.userAId === chat.userBId) {
+    return { hiddenForUserAAt: date, hiddenForUserBAt: date }
+  }
+  return chat.userAId === userId
+    ? { hiddenForUserAAt: date }
+    : { hiddenForUserBAt: date }
+}
+
+export const serializeChatMessage = (message, { viewerId = null } = {}) => {
   const deleted = Boolean(message.deletedAt)
   const reply = message.replyTo
   return {
@@ -201,12 +306,45 @@ export const serializeChatMessage = (message) => {
     editedAt: message.editedAt || null,
     deletedAt: message.deletedAt || null,
     isDeleted: deleted,
+    pinnedAt: message.pinnedAt || null,
+    pinnedByUserId: message.pinnedByUserId || null,
+    isPinned: Boolean(message.pinnedAt),
+    reactions: deleted
+      ? []
+      : serializeMessageReactions(message.reactions || [], viewerId),
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
     sender: message.sender
       ? serializeChatUser(message.sender, { isSelf: true, isFriend: true })
       : null,
   }
+}
+
+export const flattenChatMediaItems = (messages) => {
+  const items = []
+  for (const message of messages) {
+    if (message.deletedAt) continue
+    const urls = message.mediaUrls || []
+    for (let index = 0; index < urls.length; index += 1) {
+      items.push({
+        messageId: message.id,
+        chatId: message.chatId,
+        senderUserId: message.senderUserId,
+        type: message.type,
+        index,
+        url: urls[index],
+        mimeType: message.mediaMimeTypes?.[index] || '',
+        bytes: message.mediaBytes?.[index] ?? null,
+        durationMs: message.durationMs ?? null,
+        thumbnailUrl: message.thumbnailUrl || '',
+        width: message.width ?? null,
+        height: message.height ?? null,
+        isRound: Boolean(message.isRound) || message.type === 'VIDEO_NOTE',
+        createdAt: message.createdAt,
+      })
+    }
+  }
+  return items
 }
 
 const serializeChatUserForViewer = async (user, viewerId) => {
@@ -218,15 +356,34 @@ const serializeChatUserForViewer = async (user, viewerId) => {
 export const serializeDirectChat = async (chat, currentUserId) => {
   const otherUser = getOtherChatUser(chat, currentUserId)
   const lastReadAt = getChatLastReadAt(chat, currentUserId)
-  const lastMessage = chat.messages?.[0] ? serializeChatMessage(chat.messages[0]) : null
   const isSelfChat = Boolean(chat.isSelfChat || chat.userAId === chat.userBId)
+  const visibleWhere = messageVisibleWhereForUser(chat, currentUserId)
+
+  const lastVisible =
+    chat.messages?.[0] &&
+    !chat.messages[0].deletedAt &&
+    ((isSelfChat && !chat.messages[0].hiddenForUserAAt) ||
+      (chat.userAId === currentUserId && !chat.messages[0].hiddenForUserAAt) ||
+      (chat.userBId === currentUserId && !chat.messages[0].hiddenForUserBAt))
+      ? chat.messages[0]
+      : await prisma.chatMessage.findFirst({
+          where: visibleWhere,
+          include: messageInclude,
+          orderBy: { createdAt: 'desc' },
+        })
 
   const unreadCount = await prisma.chatMessage.count({
     where: {
-      chatId: chat.id,
-      deletedAt: null,
+      ...visibleWhere,
       senderUserId: isSelfChat ? undefined : { not: currentUserId },
       createdAt: lastReadAt ? { gt: lastReadAt } : undefined,
+    },
+  })
+
+  const pinnedCount = await prisma.chatMessage.count({
+    where: {
+      ...visibleWhere,
+      pinnedAt: { not: null },
     },
   })
 
@@ -238,8 +395,11 @@ export const serializeDirectChat = async (chat, currentUserId) => {
     updatedAt: chat.updatedAt,
     lastReadAt,
     unreadCount: isSelfChat ? 0 : unreadCount,
+    pinnedCount,
     otherUser: await serializeChatUserForViewer(otherUser, currentUserId),
-    lastMessage,
+    lastMessage: lastVisible
+      ? serializeChatMessage(lastVisible, { viewerId: currentUserId })
+      : null,
   }
 }
 
@@ -377,13 +537,16 @@ export const editChatTextMessage = async (chat, messageId, senderUserId, text) =
   })
 }
 
-export const softDeleteChatMessage = async (chat, messageId, senderUserId) => {
+export const softDeleteChatMessage = async (
+  chat,
+  messageId,
+  userId,
+  { scope = 'everyone' } = {},
+) => {
   const message = await prisma.chatMessage.findFirst({
     where: {
       id: messageId,
-      chatId: chat.id,
-      senderUserId,
-      deletedAt: null,
+      ...messageVisibleWhereForUser(chat, userId),
     },
   })
   if (!message) {
@@ -392,13 +555,217 @@ export const softDeleteChatMessage = async (chat, messageId, senderUserId) => {
     throw error
   }
 
+  if (scope === 'me') {
+    return {
+      scope: 'me',
+      message: await prisma.chatMessage.update({
+        where: { id: message.id },
+        data: hidePatchForUser(chat, userId),
+        include: messageInclude,
+      }),
+    }
+  }
+
+  if (message.senderUserId !== userId) {
+    const error = new Error('Only the sender can delete a message for everyone')
+    error.statusCode = 403
+    throw error
+  }
+
+  return {
+    scope: 'everyone',
+    message: await prisma.chatMessage.update({
+      where: { id: message.id },
+      data: {
+        deletedAt: new Date(),
+        pinnedAt: null,
+        pinnedByUserId: null,
+      },
+      include: messageInclude,
+    }),
+  }
+}
+
+export const pinChatMessage = async (chat, messageId, userId) => {
+  const message = await prisma.chatMessage.findFirst({
+    where: {
+      id: messageId,
+      ...messageVisibleWhereForUser(chat, userId),
+    },
+  })
+  if (!message) {
+    const error = new Error('Message not found')
+    error.statusCode = 404
+    throw error
+  }
+  if (message.pinnedAt) {
+    return prisma.chatMessage.findFirst({
+      where: { id: message.id },
+      include: messageInclude,
+    })
+  }
+
+  const pinnedCount = await prisma.chatMessage.count({
+    where: {
+      chatId: chat.id,
+      deletedAt: null,
+      pinnedAt: { not: null },
+    },
+  })
+  if (pinnedCount >= CHAT_PIN_MAX) {
+    const error = new Error(`At most ${CHAT_PIN_MAX} pinned messages per chat`)
+    error.statusCode = 400
+    throw error
+  }
+
   return prisma.chatMessage.update({
     where: { id: message.id },
     data: {
-      deletedAt: new Date(),
+      pinnedAt: new Date(),
+      pinnedByUserId: userId,
     },
     include: messageInclude,
   })
+}
+
+export const unpinChatMessage = async (chat, messageId, userId) => {
+  const message = await prisma.chatMessage.findFirst({
+    where: {
+      id: messageId,
+      chatId: chat.id,
+      deletedAt: null,
+      pinnedAt: { not: null },
+    },
+  })
+  if (!message) {
+    const error = new Error('Pinned message not found')
+    error.statusCode = 404
+    throw error
+  }
+  if (chat.userAId !== userId && chat.userBId !== userId) {
+    const error = new Error('Forbidden')
+    error.statusCode = 403
+    throw error
+  }
+
+  return prisma.chatMessage.update({
+    where: { id: message.id },
+    data: {
+      pinnedAt: null,
+      pinnedByUserId: null,
+    },
+    include: messageInclude,
+  })
+}
+
+/**
+ * Toggle: тот же emoji повторно → снять; иначе добавить.
+ * Лимит: до CHAT_REACTION_MAX_PER_USER разных emoji от одного юзера на сообщение.
+ */
+export const toggleChatMessageReaction = async (chat, messageId, userId, rawEmoji) => {
+  const emoji = normalizeReactionEmoji(rawEmoji)
+  if (!emoji) {
+    const error = new Error('emoji must be a single standard Unicode emoji')
+    error.statusCode = 400
+    throw error
+  }
+
+  const message = await prisma.chatMessage.findFirst({
+    where: {
+      id: messageId,
+      ...messageVisibleWhereForUser(chat, userId),
+    },
+    select: { id: true },
+  })
+  if (!message) {
+    const error = new Error('Message not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  const existing = await prisma.chatMessageReaction.findUnique({
+    where: {
+      messageId_userId_emoji: {
+        messageId: message.id,
+        userId,
+        emoji,
+      },
+    },
+  })
+
+  let action
+  if (existing) {
+    await prisma.chatMessageReaction.delete({ where: { id: existing.id } })
+    action = 'removed'
+  } else {
+    const myEmojis = await prisma.chatMessageReaction.findMany({
+      where: { messageId: message.id, userId },
+      select: { emoji: true },
+      distinct: ['emoji'],
+    })
+    if (myEmojis.length >= CHAT_REACTION_MAX_PER_USER) {
+      const error = new Error(
+        `At most ${CHAT_REACTION_MAX_PER_USER} different reactions per user on a message`,
+      )
+      error.statusCode = 400
+      throw error
+    }
+    await prisma.chatMessageReaction.create({
+      data: {
+        messageId: message.id,
+        userId,
+        emoji,
+      },
+    })
+    action = 'added'
+  }
+
+  const full = await prisma.chatMessage.findUnique({
+    where: { id: message.id },
+    include: messageInclude,
+  })
+  return { action, emoji, message: full }
+}
+
+export const removeChatMessageReaction = async (chat, messageId, userId, rawEmoji) => {
+  const emoji = normalizeReactionEmoji(rawEmoji)
+  if (!emoji) {
+    const error = new Error('emoji must be a single standard Unicode emoji')
+    error.statusCode = 400
+    throw error
+  }
+
+  const message = await prisma.chatMessage.findFirst({
+    where: {
+      id: messageId,
+      ...messageVisibleWhereForUser(chat, userId),
+    },
+    select: { id: true },
+  })
+  if (!message) {
+    const error = new Error('Message not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  const deleted = await prisma.chatMessageReaction.deleteMany({
+    where: {
+      messageId: message.id,
+      userId,
+      emoji,
+    },
+  })
+  if (!deleted.count) {
+    const error = new Error('Reaction not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  const full = await prisma.chatMessage.findUnique({
+    where: { id: message.id },
+    include: messageInclude,
+  })
+  return { action: 'removed', emoji, message: full }
 }
 
 export const softDeleteDirectChatForUser = async (chat, userId) => {

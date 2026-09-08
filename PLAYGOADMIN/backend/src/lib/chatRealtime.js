@@ -6,9 +6,13 @@ import {
   editChatTextMessage,
   getDirectChatByIdForUser,
   getDirectChatInclude,
+  pinChatMessage,
+  resolveMessageDeleteScope,
   serializeChatMessage,
   serializeDirectChat,
   softDeleteChatMessage,
+  toggleChatMessageReaction,
+  unpinChatMessage,
 } from './chats.js'
 
 const clientsByUserId = new Map()
@@ -101,7 +105,7 @@ export const broadcastChatMessage = async ({ chatId, message, clientMessageId })
       sendToUser(userId, {
         type: 'chat:message',
         chatId: chat.id,
-        message: serializeChatMessage(message),
+        message: serializeChatMessage(message, { viewerId: userId }),
         chat: await serializeDirectChat(chat, userId),
         clientMessageId: clientMessageId || null,
       })
@@ -141,14 +145,49 @@ export const broadcastChatMessageUpdated = async ({ chatId, message }) => {
       sendToUser(userId, {
         type: 'chat:message:updated',
         chatId: chat.id,
-        message: serializeChatMessage(message),
+        message: serializeChatMessage(message, { viewerId: userId }),
         chat: await serializeDirectChat(chat, userId),
       })
     }),
   )
 }
 
-export const broadcastChatMessageDeleted = async ({ chatId, message }) => {
+export const broadcastChatMessageDeleted = async ({
+  chatId,
+  message,
+  scope = 'everyone',
+  actorUserId,
+}) => {
+  const chat = await prisma.directChat.findUnique({
+    where: { id: chatId },
+    include: getDirectChatInclude(),
+  })
+  if (!chat) return
+
+  const recipients =
+    scope === 'me' && actorUserId
+      ? [actorUserId]
+      : getParticipantIds(chat)
+
+  await Promise.all(
+    recipients.map(async (userId) => {
+      sendToUser(userId, {
+        type: 'chat:message:deleted',
+        chatId: chat.id,
+        scope,
+        message: serializeChatMessage(message, { viewerId: userId }),
+        chat: await serializeDirectChat(chat, userId),
+      })
+    }),
+  )
+}
+
+export const broadcastChatMessagePinned = async ({
+  chatId,
+  message,
+  pinned,
+  actorUserId,
+}) => {
   const chat = await prisma.directChat.findUnique({
     where: { id: chatId },
     include: getDirectChatInclude(),
@@ -158,9 +197,38 @@ export const broadcastChatMessageDeleted = async ({ chatId, message }) => {
   await Promise.all(
     getParticipantIds(chat).map(async (userId) => {
       sendToUser(userId, {
-        type: 'chat:message:deleted',
+        type: pinned ? 'chat:message:pinned' : 'chat:message:unpinned',
         chatId: chat.id,
-        message: serializeChatMessage(message),
+        actorUserId: actorUserId || null,
+        message: serializeChatMessage(message, { viewerId: userId }),
+        chat: await serializeDirectChat(chat, userId),
+      })
+    }),
+  )
+}
+
+export const broadcastChatMessageReaction = async ({
+  chatId,
+  message,
+  action,
+  emoji,
+  actorUserId,
+}) => {
+  const chat = await prisma.directChat.findUnique({
+    where: { id: chatId },
+    include: getDirectChatInclude(),
+  })
+  if (!chat) return
+
+  await Promise.all(
+    getParticipantIds(chat).map(async (userId) => {
+      sendToUser(userId, {
+        type: 'chat:message:reaction',
+        chatId: chat.id,
+        action,
+        emoji,
+        actorUserId: actorUserId || null,
+        message: serializeChatMessage(message, { viewerId: userId }),
         chat: await serializeDirectChat(chat, userId),
       })
     }),
@@ -335,14 +403,90 @@ const handleMessageDelete = async (ws, payload) => {
     return
   }
 
+  const scope = resolveMessageDeleteScope(payload.scope ?? payload.for, {
+    fallback: 'everyone',
+  })
+  if (!scope) {
+    sendJson(ws, {
+      type: 'error',
+      code: 'BAD_REQUEST',
+      message: 'scope must be me or everyone',
+    })
+    return
+  }
+
   const chat = await getDirectChatByIdForUser(chatId, ws.userId)
   if (!chat) {
     sendJson(ws, { type: 'error', code: 'CHAT_NOT_FOUND', message: 'Chat not found' })
     return
   }
 
-  const message = await softDeleteChatMessage(chat, messageId, ws.userId)
-  await broadcastChatMessageDeleted({ chatId: chat.id, message })
+  const result = await softDeleteChatMessage(chat, messageId, ws.userId, { scope })
+  await broadcastChatMessageDeleted({
+    chatId: chat.id,
+    message: result.message,
+    scope: result.scope,
+    actorUserId: ws.userId,
+  })
+}
+
+const handleMessagePin = async (ws, payload, pinned) => {
+  const chatId = String(payload.chatId || '').trim()
+  const messageId = String(payload.messageId || '').trim()
+  if (!chatId || !messageId) {
+    sendJson(ws, {
+      type: 'error',
+      code: 'BAD_REQUEST',
+      message: 'chatId and messageId are required',
+    })
+    return
+  }
+
+  const chat = await getDirectChatByIdForUser(chatId, ws.userId)
+  if (!chat) {
+    sendJson(ws, { type: 'error', code: 'CHAT_NOT_FOUND', message: 'Chat not found' })
+    return
+  }
+
+  const message = pinned
+    ? await pinChatMessage(chat, messageId, ws.userId)
+    : await unpinChatMessage(chat, messageId, ws.userId)
+
+  await broadcastChatMessagePinned({
+    chatId: chat.id,
+    message,
+    pinned,
+    actorUserId: ws.userId,
+  })
+}
+
+const handleMessageReaction = async (ws, payload) => {
+  const chatId = String(payload.chatId || '').trim()
+  const messageId = String(payload.messageId || '').trim()
+  const emoji = payload.emoji ?? payload.reaction
+  if (!chatId || !messageId) {
+    sendJson(ws, {
+      type: 'error',
+      code: 'BAD_REQUEST',
+      message: 'chatId and messageId are required',
+    })
+    return
+  }
+
+  const chat = await getDirectChatByIdForUser(chatId, ws.userId)
+  if (!chat) {
+    sendJson(ws, { type: 'error', code: 'CHAT_NOT_FOUND', message: 'Chat not found' })
+    return
+  }
+
+  const result = await toggleChatMessageReaction(chat, messageId, ws.userId, emoji)
+  await broadcastChatMessageReaction({
+    chatId: chat.id,
+    message: result.message,
+    action: result.action,
+    emoji: result.emoji,
+    actorUserId: ws.userId,
+  })
 }
 
 const handleSubscribe = async (ws, payload) => {
@@ -393,6 +537,21 @@ const handleIncoming = async (ws, raw) => {
       await handleMessageDelete(ws, payload)
       return
     }
+    if (payload.type === 'chat:message:pin') {
+      await handleMessagePin(ws, payload, true)
+      return
+    }
+    if (payload.type === 'chat:message:unpin') {
+      await handleMessagePin(ws, payload, false)
+      return
+    }
+    if (
+      payload.type === 'chat:message:reaction' ||
+      payload.type === 'chat:message:reaction:toggle'
+    ) {
+      await handleMessageReaction(ws, payload)
+      return
+    }
     if (payload.type === 'chat:read') {
       await handleRead(ws, payload)
       return
@@ -400,6 +559,14 @@ const handleIncoming = async (ws, raw) => {
     sendJson(ws, { type: 'error', code: 'UNKNOWN_TYPE', message: `Unknown message type: ${payload.type}` })
   } catch (err) {
     console.error('Chat websocket handler failed', err)
+    if (err.statusCode) {
+      sendJson(ws, {
+        type: 'error',
+        code: err.statusCode === 404 ? 'NOT_FOUND' : err.statusCode === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
+        message: err.message || 'Request failed',
+      })
+      return
+    }
     sendJson(ws, { type: 'error', code: 'INTERNAL_ERROR', message: 'Internal server error' })
   }
 }

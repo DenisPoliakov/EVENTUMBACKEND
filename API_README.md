@@ -462,6 +462,11 @@ Client → server:
 - `{"type":"ping"}`
 - `{"type":"chat:subscribe","chatId":"..."}`
 - `{"type":"chat:message:send","chatId":"...","text":"...","clientMessageId":"optional-local-id"}`
+- `{"type":"chat:message:edit","chatId":"...","messageId":"...","text":"..."}`
+- `{"type":"chat:message:delete","chatId":"...","messageId":"...","scope":"me|everyone"}`
+- `{"type":"chat:message:pin","chatId":"...","messageId":"..."}`
+- `{"type":"chat:message:unpin","chatId":"...","messageId":"..."}`
+- `{"type":"chat:message:reaction","chatId":"...","messageId":"...","emoji":"🔥"}`
 - `{"type":"chat:read","chatId":"..."}`
 
 Server → client:
@@ -469,6 +474,11 @@ Server → client:
 - `{"type":"pong","at":"..."}`
 - `{"type":"chat:subscribed","chatId":"...","chat":{...}}`
 - `{"type":"chat:message","chatId":"...","message":{...},"chat":{...},"clientMessageId":"..."}`
+- `{"type":"chat:message:updated","chatId":"...","message":{...},"chat":{...}}`
+- `{"type":"chat:message:deleted","chatId":"...","scope":"me|everyone","message":{...},"chat":{...}}`
+- `{"type":"chat:message:pinned","chatId":"...","message":{...},"chat":{...}}`
+- `{"type":"chat:message:unpinned","chatId":"...","message":{...},"chat":{...}}`
+- `{"type":"chat:message:reaction","chatId":"...","action":"added|removed","emoji":"🔥","actorUserId":"...","message":{...},"chat":{...}}`
 - `{"type":"chat:read","chatId":"...","userId":"...","readAt":"...","chat":{...}}`
 - `{"type":"notifications:sync","unreadCount":3,"at":"..."}`
 - `{"type":"notification:upserted","notification":{...},"unreadCount":4}`
@@ -500,10 +510,26 @@ Server → client:
   - query:
     - `limit`
     - `before` — ISO timestamp для пагинации назад
+- `GET /api/me/chats/:chatId/media`
+  - Bearer required
+  - галерея медиа чата: `{ messages[], items[] }`
+  - query: `type` (IMAGE|VOICE|VIDEO|VIDEO_NOTE|ALBUM|PHOTO), `limit`, `before`
+- `GET /api/me/chats/:chatId/pinned-messages`
+  - Bearer required
+  - закреплённые сообщения
 - `POST /api/me/chats/:chatId/messages`
   - Bearer required
   - body:
     - `text`
+- `DELETE /api/me/chats/:chatId/messages/:messageId`
+  - Bearer required
+  - `scope=me` — удалить только у себя; `scope=everyone` — у обоих (только отправитель, default)
+- `POST /api/me/chats/:chatId/messages/:messageId/pin`
+- `DELETE /api/me/chats/:chatId/messages/:messageId/pin`
+- `POST /api/me/chats/:chatId/messages/:messageId/reactions`
+  - body `{ "emoji": "🔥" }` — toggle; до 3 разных emoji на юзера; в `reactions[].users` кто поставил
+- `DELETE /api/me/chats/:chatId/messages/:messageId/reactions`
+  - снять свою (`emoji` в body/query)
 - `POST /api/me/chats/:chatId/read`
   - Bearer required
   - отметить чат прочитанным для текущего пользователя

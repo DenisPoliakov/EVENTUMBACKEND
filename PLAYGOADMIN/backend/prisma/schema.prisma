@@ -326,6 +326,8 @@ model User {
   directChatsAsUserA      DirectChat[]             @relation("DirectChatUserA")
   directChatsAsUserB      DirectChat[]             @relation("DirectChatUserB")
   sentChatMessages        ChatMessage[]            @relation("ChatMessageSender")
+  pinnedChatMessages      ChatMessage[]            @relation("ChatMessagePinnedBy")
+  chatMessageReactions    ChatMessageReaction[]
   friendshipsRequested    Friendship[]             @relation("FriendshipRequester")
   friendshipsReceived     Friendship[]             @relation("FriendshipAddressee")
   wellnessStoryViews      WellnessStoryView[]
@@ -1193,12 +1195,36 @@ model ChatMessage {
   height           Int?
   /// VIDEO_NOTE — круглое видеосообщение
   isRound          Boolean         @default(false)
+  /// Скрыто только для userA / userB чата (удалить у себя)
+  hiddenForUserAAt DateTime?
+  hiddenForUserBAt DateTime?
+  /// Глобальное soft-delete (удалить у обоих)
   editedAt         DateTime?
   deletedAt        DateTime?
+  pinnedAt         DateTime?
+  pinnedByUserId   String?
+  pinnedBy         User?           @relation("ChatMessagePinnedBy", fields: [pinnedByUserId], references: [id], onDelete: SetNull)
+  reactions        ChatMessageReaction[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   @@index([chatId, createdAt])
   @@index([senderUserId, createdAt])
   @@index([replyToMessageId])
+  @@index([chatId, pinnedAt])
+}
+
+model ChatMessageReaction {
+  id        String      @id @default(uuid())
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Unicode emoji (один grapheme / emoji-sequence), напр. "🔥"
+  emoji     String
+  createdAt DateTime    @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId, createdAt])
+  @@index([userId, createdAt])
 }

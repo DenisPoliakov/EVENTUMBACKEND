@@ -18,23 +18,33 @@ import {
 } from '../lib/chatMedia.js'
 import {
   buildChatLastReadPatch,
+  CHAT_MEDIA_TYPES,
   createChatMessage,
   createOrGetDirectChat,
   editChatTextMessage,
+  flattenChatMediaItems,
   getDirectChatByIdForUser,
   getDirectChatInclude,
   isChatHiddenForUser,
   messageInclude,
+  messageVisibleWhereForUser,
   participantWhereForUser,
+  pinChatMessage,
+  removeChatMessageReaction,
+  resolveMessageDeleteScope,
   serializeChatMessage,
   serializeDirectChat,
   softDeleteChatMessage,
   softDeleteDirectChatForUser,
+  toggleChatMessageReaction,
+  unpinChatMessage,
 } from '../lib/chats.js'
 import {
   broadcastChatDeleted,
   broadcastChatMessage,
   broadcastChatMessageDeleted,
+  broadcastChatMessagePinned,
+  broadcastChatMessageReaction,
   broadcastChatMessageUpdated,
   broadcastChatRead,
 } from '../lib/chatRealtime.js'
@@ -201,9 +211,69 @@ router.get('/me/chats/:chatId/messages', requireAuth, async (req, res, next) => 
       String(req.query.includeDeleted || '').toLowerCase() === 'true'
 
     const messages = await prisma.chatMessage.findMany({
+      where: includeDeleted
+        ? {
+            chatId: chat.id,
+            ...(chat.isSelfChat || chat.userAId === chat.userBId
+              ? { hiddenForUserAAt: null }
+              : chat.userAId === req.auth.sub
+                ? { hiddenForUserAAt: null }
+                : { hiddenForUserBAt: null }),
+            createdAt: before ? { lt: before } : undefined,
+          }
+        : {
+            ...messageVisibleWhereForUser(chat, req.auth.sub),
+            createdAt: before ? { lt: before } : undefined,
+          },
+      include: messageInclude,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    })
+
+    res.json({
+      messages: messages.reverse().map((item) => serializeChatMessage(item, { viewerId: req.auth.sub })),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * Медиа-галерея чата (фото/видео/голос/кружки/альбомы).
+ * GET /api/me/chats/:chatId/media?type=IMAGE&limit=50&before=ISO
+ */
+router.get('/me/chats/:chatId/media', requireAuth, async (req, res, next) => {
+  try {
+    const chat = await getDirectChatByIdForUser(req.params.chatId, req.auth.sub)
+    if (!chat || isChatHiddenForUser(chat, req.auth.sub)) {
+      return res.status(404).json({ error: 'Chat not found' })
+    }
+
+    const limit = listLimit(req.query.limit, 50, 100)
+    const before = req.query.before ? new Date(String(req.query.before)) : null
+    if (before && Number.isNaN(before.getTime())) {
+      return res.status(400).json({ error: 'before must be a valid ISO date' })
+    }
+
+    const typeRaw = String(req.query.type || '').trim().toUpperCase()
+    let types = CHAT_MEDIA_TYPES
+    if (typeRaw) {
+      if (typeRaw === 'PHOTO') {
+        types = ['IMAGE', 'ALBUM']
+      } else if (!CHAT_MEDIA_TYPES.includes(typeRaw)) {
+        return res.status(400).json({
+          error: `type must be one of ${CHAT_MEDIA_TYPES.join(', ')} or PHOTO`,
+        })
+      } else {
+        types = [typeRaw]
+      }
+    }
+
+    const messages = await prisma.chatMessage.findMany({
       where: {
-        chatId: chat.id,
-        deletedAt: includeDeleted ? undefined : null,
+        ...messageVisibleWhereForUser(chat, req.auth.sub),
+        type: { in: types },
+        mediaUrls: { isEmpty: false },
         createdAt: before ? { lt: before } : undefined,
       },
       include: messageInclude,
@@ -211,8 +281,35 @@ router.get('/me/chats/:chatId/messages', requireAuth, async (req, res, next) => 
       take: limit,
     })
 
+    const ordered = messages.reverse()
     res.json({
-      messages: messages.reverse().map(serializeChatMessage),
+      messages: ordered.map((item) => serializeChatMessage(item, { viewerId: req.auth.sub })),
+      items: flattenChatMediaItems(ordered),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.get('/me/chats/:chatId/pinned-messages', requireAuth, async (req, res, next) => {
+  try {
+    const chat = await getDirectChatByIdForUser(req.params.chatId, req.auth.sub)
+    if (!chat || isChatHiddenForUser(chat, req.auth.sub)) {
+      return res.status(404).json({ error: 'Chat not found' })
+    }
+
+    const messages = await prisma.chatMessage.findMany({
+      where: {
+        ...messageVisibleWhereForUser(chat, req.auth.sub),
+        pinnedAt: { not: null },
+      },
+      include: messageInclude,
+      orderBy: { pinnedAt: 'desc' },
+      take: 50,
+    })
+
+    res.json({
+      messages: messages.map((item) => serializeChatMessage(item, { viewerId: req.auth.sub })),
     })
   } catch (err) {
     next(err)
@@ -294,7 +391,7 @@ router.post('/me/chats/:chatId/messages', requireAuth, async (req, res, next) =>
     await broadcastChatMessage({ chatId: chat.id, message })
 
     res.status(201).json({
-      message: serializeChatMessage(message),
+      message: serializeChatMessage(message, { viewerId: req.auth.sub }),
     })
   } catch (err) {
     if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
@@ -457,7 +554,7 @@ router.post('/me/chats/:chatId/media', requireAuth, async (req, res, next) => {
         await broadcastChatMessage({ chatId: chat.id, message })
 
         return res.status(201).json({
-          message: serializeChatMessage(message),
+          message: serializeChatMessage(message, { viewerId: req.auth.sub }),
         })
       } catch (err) {
         if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
@@ -484,7 +581,7 @@ router.patch('/me/chats/:chatId/messages/:messageId', requireAuth, async (req, r
     const message = await editChatTextMessage(chat, req.params.messageId, req.auth.sub, text)
     await broadcastChatMessageUpdated({ chatId: chat.id, message })
 
-    res.json({ message: serializeChatMessage(message) })
+    res.json({ message: serializeChatMessage(message, { viewerId: req.auth.sub }) })
   } catch (err) {
     if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
     next(err)
@@ -498,15 +595,165 @@ router.delete('/me/chats/:chatId/messages/:messageId', requireAuth, async (req, 
       return res.status(404).json({ error: 'Chat not found' })
     }
 
-    const message = await softDeleteChatMessage(chat, req.params.messageId, req.auth.sub)
-    await broadcastChatMessageDeleted({ chatId: chat.id, message })
+    const scope = resolveMessageDeleteScope(
+      req.body?.scope ?? req.query.scope ?? req.body?.for ?? req.query.for,
+      { fallback: 'everyone' },
+    )
+    if (!scope) {
+      return res.status(400).json({
+        error: 'scope must be me or everyone',
+      })
+    }
 
-    res.json({ message: serializeChatMessage(message) })
+    const result = await softDeleteChatMessage(chat, req.params.messageId, req.auth.sub, {
+      scope,
+    })
+    await broadcastChatMessageDeleted({
+      chatId: chat.id,
+      message: result.message,
+      scope: result.scope,
+      actorUserId: req.auth.sub,
+    })
+
+    res.json({
+      scope: result.scope,
+      message: serializeChatMessage(result.message, { viewerId: req.auth.sub }),
+    })
   } catch (err) {
     if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
     next(err)
   }
 })
+
+router.post(
+  '/me/chats/:chatId/messages/:messageId/pin',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const chat = await getDirectChatByIdForUser(req.params.chatId, req.auth.sub)
+      if (!chat || isChatHiddenForUser(chat, req.auth.sub)) {
+        return res.status(404).json({ error: 'Chat not found' })
+      }
+
+      const message = await pinChatMessage(chat, req.params.messageId, req.auth.sub)
+      await broadcastChatMessagePinned({
+        chatId: chat.id,
+        message,
+        pinned: true,
+        actorUserId: req.auth.sub,
+      })
+
+      res.json({ message: serializeChatMessage(message, { viewerId: req.auth.sub }) })
+    } catch (err) {
+      if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
+      next(err)
+    }
+  },
+)
+
+router.delete(
+  '/me/chats/:chatId/messages/:messageId/pin',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const chat = await getDirectChatByIdForUser(req.params.chatId, req.auth.sub)
+      if (!chat || isChatHiddenForUser(chat, req.auth.sub)) {
+        return res.status(404).json({ error: 'Chat not found' })
+      }
+
+      const message = await unpinChatMessage(chat, req.params.messageId, req.auth.sub)
+      await broadcastChatMessagePinned({
+        chatId: chat.id,
+        message,
+        pinned: false,
+        actorUserId: req.auth.sub,
+      })
+
+      res.json({ message: serializeChatMessage(message, { viewerId: req.auth.sub }) })
+    } catch (err) {
+      if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
+      next(err)
+    }
+  },
+)
+
+/**
+ * Toggle реакции: повторный тот же emoji снимает.
+ * Body: { "emoji": "🔥" }
+ * Лимит: 3 разных emoji от одного пользователя на сообщение.
+ */
+router.post(
+  '/me/chats/:chatId/messages/:messageId/reactions',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const chat = await getDirectChatByIdForUser(req.params.chatId, req.auth.sub)
+      if (!chat || isChatHiddenForUser(chat, req.auth.sub)) {
+        return res.status(404).json({ error: 'Chat not found' })
+      }
+
+      const result = await toggleChatMessageReaction(
+        chat,
+        req.params.messageId,
+        req.auth.sub,
+        req.body?.emoji ?? req.body?.reaction,
+      )
+      await broadcastChatMessageReaction({
+        chatId: chat.id,
+        message: result.message,
+        action: result.action,
+        emoji: result.emoji,
+        actorUserId: req.auth.sub,
+      })
+
+      res.json({
+        action: result.action,
+        emoji: result.emoji,
+        message: serializeChatMessage(result.message, { viewerId: req.auth.sub }),
+      })
+    } catch (err) {
+      if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
+      next(err)
+    }
+  },
+)
+
+router.delete(
+  '/me/chats/:chatId/messages/:messageId/reactions',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const chat = await getDirectChatByIdForUser(req.params.chatId, req.auth.sub)
+      if (!chat || isChatHiddenForUser(chat, req.auth.sub)) {
+        return res.status(404).json({ error: 'Chat not found' })
+      }
+
+      const emoji = req.body?.emoji ?? req.body?.reaction ?? req.query.emoji
+      const result = await removeChatMessageReaction(
+        chat,
+        req.params.messageId,
+        req.auth.sub,
+        emoji,
+      )
+      await broadcastChatMessageReaction({
+        chatId: chat.id,
+        message: result.message,
+        action: result.action,
+        emoji: result.emoji,
+        actorUserId: req.auth.sub,
+      })
+
+      res.json({
+        action: result.action,
+        emoji: result.emoji,
+        message: serializeChatMessage(result.message, { viewerId: req.auth.sub }),
+      })
+    } catch (err) {
+      if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
+      next(err)
+    }
+  },
+)
 
 router.post('/me/chats/:chatId/read', requireAuth, async (req, res, next) => {
   try {
