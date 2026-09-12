@@ -58,7 +58,7 @@ export const wellnessStoryIdentifierWhere = (identifier) => ({
 
 export const serializeWellnessStory = (
   story,
-  { viewedByMe = false, includeAdminFields = false } = {}
+  { viewedByMe = false, includeAdminFields = false, now = new Date() } = {}
 ) => {
   const serialized = {
     id: story.id,
@@ -105,10 +105,19 @@ export const serializeWellnessStory = (
 
   if (!includeAdminFields) return serialized
 
+  const publishedAt = story.publishedAt ? new Date(story.publishedAt) : null
+  const visibleInApp =
+    Boolean(story.isActive) &&
+    !story.deletedAt &&
+    Boolean(publishedAt) &&
+    !Number.isNaN(publishedAt.getTime()) &&
+    publishedAt.getTime() <= now.getTime()
+
   return {
     ...serialized,
     isActive: Boolean(story.isActive),
     deletedAt: story.deletedAt || null,
+    visibleInApp,
     createdAt: story.createdAt,
     updatedAt: story.updatedAt,
   }

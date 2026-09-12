@@ -18,6 +18,10 @@ import {
   subscriptionInclude,
   toNullableInt,
 } from '../lib/ecosystem.js'
+import {
+  getClubReviewSummary,
+  roundAverageRating,
+} from '../lib/reviews.js'
 import { formatHumanDateRu } from '../lib/dates.js'
 import {
   newsIncludeShape,
@@ -248,6 +252,62 @@ router.get('/sports', async (_req, res, next) => {
   }
 })
 
+const attachClubReviewSummaries = async (clubs) => {
+  if (!clubs.length) return clubs
+  const ids = clubs.map((club) => club.id)
+  const grouped = await prisma.review.groupBy({
+    by: ['clubId'],
+    where: {
+      clubId: { in: ids },
+      targetType: 'CLUB',
+      isHidden: false,
+    },
+    _avg: { rating: true },
+    _count: { _all: true },
+  })
+  const byId = new Map(
+    grouped.map((row) => [
+      row.clubId,
+      {
+        averageRating: roundAverageRating(row._avg.rating),
+        reviewCount: row._count._all,
+      },
+    ]),
+  )
+  return clubs.map((club) => ({
+    ...club,
+    ...(byId.get(club.id) || { averageRating: null, reviewCount: 0 }),
+  }))
+}
+
+const attachCoachReviewSummaries = async (coaches) => {
+  if (!coaches.length) return coaches
+  const ids = coaches.map((coach) => coach.id)
+  const grouped = await prisma.review.groupBy({
+    by: ['coachProfileId'],
+    where: {
+      coachProfileId: { in: ids },
+      targetType: 'COACH',
+      isHidden: false,
+    },
+    _avg: { rating: true },
+    _count: { _all: true },
+  })
+  const byId = new Map(
+    grouped.map((row) => [
+      row.coachProfileId,
+      {
+        averageRating: roundAverageRating(row._avg.rating),
+        reviewCount: row._count._all,
+      },
+    ]),
+  )
+  return coaches.map((coach) => ({
+    ...coach,
+    ...(byId.get(coach.id) || { averageRating: null, reviewCount: 0 }),
+  }))
+}
+
 router.get('/clubs', async (req, res, next) => {
   try {
     const age = toNullableInt(req.query.age)
@@ -279,7 +339,8 @@ router.get('/clubs', async (req, res, next) => {
       orderBy: { name: 'asc' },
       include: clubInclude,
     })
-    res.json(clubs.map(serializeClub))
+    const withReviews = await attachClubReviewSummaries(clubs)
+    res.json(withReviews.map(serializeClub))
   } catch (err) {
     next(err)
   }
@@ -424,8 +485,9 @@ router.get('/coach-profiles/search', async (req, res, next) => {
       include: coachProfileInclude,
     })
 
+    const withReviews = await attachCoachReviewSummaries(rows)
     res.json({
-      coaches: rows.map((row) => serializeCoachProfile(row)),
+      coaches: withReviews.map((row) => serializeCoachProfile(row)),
     })
   } catch (err) {
     next(err)
@@ -439,7 +501,8 @@ router.get('/clubs/:id', async (req, res, next) => {
       include: clubInclude,
     })
     if (!club) return res.status(404).json({ error: 'Club not found' })
-    res.json(serializeClub(club))
+    const summary = await getClubReviewSummary(club.id)
+    res.json(serializeClub({ ...club, ...summary }))
   } catch (err) {
     next(err)
   }

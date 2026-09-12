@@ -160,7 +160,9 @@ function WellnessStoriesPage() {
       readMinutes: Number(form.readMinutes) || 3,
       sortOrder: Number(form.sortOrder) || 0,
       locale: 'ru',
-      publishedAt: form.publishedAt || undefined,
+      publishedAt: form.publishedAt
+        ? dayjs(form.publishedAt).toISOString()
+        : dayjs().toISOString(),
       isActive: form.isActive === 'true',
       authorClubId: form.authorClubId || null,
       authorType: form.authorClubId ? 'club' : 'platform',
@@ -506,11 +508,21 @@ function WellnessStoriesPage() {
                 <h3 className="content-card-title">{story.title}</h3>
                 <div className="content-card-meta">
                   {categoryLabels[story.category]} · {story.readMinutes} мин ·{' '}
-                  {story.isActive ? 'видна' : 'скрыта'}
+                  {story.isActive ? 'активна' : 'выключена'}
+                  {' · '}
+                  {story.visibleInApp
+                    ? 'в приложении'
+                    : 'НЕ в приложении'}
                 </div>
                 <div className="content-card-meta">
                   Просмотрели: {story.uniqueViewerCount} ·{' '}
-                  {dayjs(story.publishedAt).format('DD.MM.YYYY')}
+                  {dayjs(story.publishedAt).format('DD.MM.YYYY HH:mm')}
+                  {!story.visibleInApp ? (
+                    <>
+                      {' '}
+                      · проверь isActive и дату публикации (с таймзоной)
+                    </>
+                  ) : null}
                 </div>
                 <div className="table-actions" style={{ marginTop: 'auto' }}>
                   <button

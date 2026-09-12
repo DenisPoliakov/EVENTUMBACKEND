@@ -94,6 +94,18 @@ export const serializeSport = (sport) => ({
 
 export const serializeCoachProfile = (profile, options = {}) => {
   const includeClub = options.includeClub !== false
+  const averageRating =
+    profile.averageRating !== undefined
+      ? profile.averageRating
+      : options.averageRating !== undefined
+        ? options.averageRating
+        : null
+  const reviewCount =
+    profile.reviewCount !== undefined
+      ? profile.reviewCount
+      : options.reviewCount !== undefined
+        ? options.reviewCount
+        : 0
 
   return {
     id: profile.id,
@@ -108,6 +120,9 @@ export const serializeCoachProfile = (profile, options = {}) => {
     photoUrl: normalizeMediaUrl(profile.photoUrl),
     maxUrl: profile.maxUrl || '',
     telegramUrl: profile.telegramUrl || '',
+    averageRating,
+    reviewCount,
+    rating: averageRating,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
     user: profile.user
@@ -132,73 +147,84 @@ export const serializeCoachProfile = (profile, options = {}) => {
   }
 }
 
-export const serializeClub = (club) => ({
-  id: club.id,
-  sportId: club.sportId,
-  sport: club.sport ? serializeSport(club.sport) : null,
-  cityId: club.cityId || '',
-  city: club.city?.name || '',
-  name: club.name,
-  kind: club.kind || '',
-  address: club.address,
-  description: club.description || '',
-  latitude: club.latitude,
-  longitude: club.longitude,
-  tier: club.tier,
-  imageUrl: normalizeMediaUrl(club.imageUrl || club.logoUrl),
-  logoUrl: normalizeMediaUrl(club.logoUrl || club.imageUrl),
-  galleryUrls: (club.galleryUrls || []).map(normalizeMediaUrl),
-  imageUrls: (club.galleryUrls || []).map(normalizeMediaUrl),
-  yandexMapsUrl: club.yandexMapsUrl || '',
-  contactPhone: club.contactPhone || '',
-  contactEmail: club.contactEmail || '',
-  websiteUrl: club.websiteUrl || '',
-  telegramUrl: club.telegramUrl || '',
-  vkUrl: club.vkUrl || '',
-  instagramUrl: club.instagramUrl || '',
-  minAge: club.minAge,
-  maxAge: club.maxAge,
-  coaches: club.coaches || [],
-  coachProfiles: (club.coachProfiles || []).map((profile) =>
-    serializeCoachProfile(profile, { includeClub: false }),
-  ),
-  schedules: (club.schedules || []).map((schedule) => ({
-    id: schedule.id,
-    title: schedule.title || '',
-    dayOfWeek: schedule.dayOfWeek,
-    startTime: schedule.startTime,
-    endTime: schedule.endTime,
-    ageGroup: schedule.ageGroup || '',
-    coachName: schedule.coachName || '',
-    coachProfileId: schedule.coachProfileId || '',
-    coachId: schedule.coachProfileId || '',
-    priceCents: schedule.priceCents,
-    note: schedule.note || '',
-  })),
-  passes: (club.plans || []).map((plan) => ({
-    id: plan.id,
-    clubId: plan.clubId || '',
-    sportId: plan.sportId,
-    title: plan.title,
-    description: plan.description || '',
-    tier: plan.tier,
-    priceCents: plan.priceCents,
-    currency: plan.currency,
-    durationDays: plan.durationDays,
-    isActive: Boolean(plan.isActive),
-  })),
-  subscriptions: (club.plans || []).map((plan) => ({
-    id: plan.id,
-    title: plan.title,
-    tier: plan.tier,
-    priceCents: plan.priceCents,
-    currency: plan.currency,
-    durationDays: plan.durationDays,
-    isActive: Boolean(plan.isActive),
-  })),
-  createdAt: club.createdAt,
-  updatedAt: club.updatedAt,
-})
+export const serializeClub = (club) => {
+  const averageRating =
+    club.averageRating !== undefined && club.averageRating !== null
+      ? club.averageRating
+      : null
+  const reviewCount = club.reviewCount ?? 0
+
+  return {
+    id: club.id,
+    sportId: club.sportId,
+    sport: club.sport ? serializeSport(club.sport) : null,
+    cityId: club.cityId || '',
+    city: club.city?.name || '',
+    name: club.name,
+    kind: club.kind || '',
+    address: club.address,
+    description: club.description || '',
+    latitude: club.latitude,
+    longitude: club.longitude,
+    tier: club.tier,
+    imageUrl: normalizeMediaUrl(club.imageUrl || club.logoUrl),
+    logoUrl: normalizeMediaUrl(club.logoUrl || club.imageUrl),
+    galleryUrls: (club.galleryUrls || []).map(normalizeMediaUrl),
+    imageUrls: (club.galleryUrls || []).map(normalizeMediaUrl),
+    yandexMapsUrl: club.yandexMapsUrl || '',
+    contactPhone: club.contactPhone || '',
+    contactEmail: club.contactEmail || '',
+    websiteUrl: club.websiteUrl || '',
+    telegramUrl: club.telegramUrl || '',
+    vkUrl: club.vkUrl || '',
+    instagramUrl: club.instagramUrl || '',
+    minAge: club.minAge,
+    maxAge: club.maxAge,
+    coaches: club.coaches || [],
+    coachProfiles: (club.coachProfiles || []).map((profile) =>
+      serializeCoachProfile(profile, { includeClub: false }),
+    ),
+    schedules: (club.schedules || []).map((schedule) => ({
+      id: schedule.id,
+      title: schedule.title || '',
+      dayOfWeek: schedule.dayOfWeek,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      ageGroup: schedule.ageGroup || '',
+      coachName: schedule.coachName || '',
+      coachProfileId: schedule.coachProfileId || '',
+      coachId: schedule.coachProfileId || '',
+      priceCents: schedule.priceCents,
+      note: schedule.note || '',
+    })),
+    passes: (club.plans || []).map((plan) => ({
+      id: plan.id,
+      clubId: plan.clubId || '',
+      sportId: plan.sportId,
+      title: plan.title,
+      description: plan.description || '',
+      tier: plan.tier,
+      priceCents: plan.priceCents,
+      currency: plan.currency,
+      durationDays: plan.durationDays,
+      isActive: Boolean(plan.isActive),
+    })),
+    subscriptions: (club.plans || []).map((plan) => ({
+      id: plan.id,
+      title: plan.title,
+      tier: plan.tier,
+      priceCents: plan.priceCents,
+      currency: plan.currency,
+      durationDays: plan.durationDays,
+      isActive: Boolean(plan.isActive),
+    })),
+    averageRating,
+    reviewCount,
+    rating: averageRating,
+    createdAt: club.createdAt,
+    updatedAt: club.updatedAt,
+  }
+}
 
 export const serializePlan = (plan) => ({
   id: plan.id,

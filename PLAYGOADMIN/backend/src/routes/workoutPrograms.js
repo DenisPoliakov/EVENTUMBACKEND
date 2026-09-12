@@ -154,14 +154,11 @@ router.put('/:id/steps/reorder', async (req, res, next) => {
           throw error
         }
 
-        const temporaryBase =
-          Math.max(10000, ...existing.map((step) => step.order)) +
-          existing.length +
-          1
+        const temporaryBase = -(existing.length + 1)
         for (const [index, stepId] of stepIds.entries()) {
           await tx.workoutStep.update({
             where: { id: stepId },
-            data: { order: temporaryBase + index },
+            data: { order: temporaryBase - index },
           })
         }
         for (const [index, stepId] of stepIds.entries()) {

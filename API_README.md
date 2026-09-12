@@ -534,6 +534,15 @@ Server → client:
   - Bearer required
   - отметить чат прочитанным для текущего пользователя
 
+### Reviews (клубы и тренеры)
+
+- `GET /api/clubs/:clubId/reviews` — список + `summary: { averageRating, reviewCount }`
+- `GET /api/coach-profiles/:coachProfileId/reviews` — то же для тренера
+- `POST /api/me/clubs/:clubId/reviews` — написать/обновить свой отзыв `{ rating: 1..5, body }`
+- `POST /api/me/coach-profiles/:coachProfileId/reviews` — то же для тренера
+- `DELETE /api/me/reviews/:reviewId` — удалить свой
+- В `GET /api/clubs` и `GET /api/clubs/:id` / поиске тренеров отдаются `averageRating`, `reviewCount`, `rating`
+
 ### Users Search And Friends
 
 Чтобы чаты не терялись, пользователей ищут по username и добавляют в друзья. При принятии заявки backend сразу создаёт (или находит) direct-чат и отдаёт `chatId` в списках друзей.

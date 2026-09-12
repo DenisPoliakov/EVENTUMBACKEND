@@ -328,6 +328,7 @@ model User {
   sentChatMessages        ChatMessage[]            @relation("ChatMessageSender")
   pinnedChatMessages      ChatMessage[]            @relation("ChatMessagePinnedBy")
   chatMessageReactions    ChatMessageReaction[]
+  reviews                 Review[]
   friendshipsRequested    Friendship[]             @relation("FriendshipRequester")
   friendshipsReceived     Friendship[]             @relation("FriendshipAddressee")
   wellnessStoryViews      WellnessStoryView[]
@@ -657,6 +658,7 @@ model SportClub {
   favoritedBy   FavoriteClub[]
   notifications UserNotification[]
   pushCampaigns PushCampaign[]
+  reviews       Review[]
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -683,6 +685,7 @@ model CoachProfile {
   bookings        TrainingBooking[]
   wellnessStories WellnessStory[]
   clubLinkRequests CoachClubLinkRequest[]
+  reviews          Review[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -1227,4 +1230,34 @@ model ChatMessageReaction {
   @@unique([messageId, userId, emoji])
   @@index([messageId, createdAt])
   @@index([userId, createdAt])
+}
+
+enum ReviewTargetType {
+  CLUB
+  COACH
+}
+
+/// Отзыв пользователя о клубе или тренере (один отзыв на цель от автора).
+model Review {
+  id             String           @id @default(uuid())
+  authorUserId   String
+  author         User             @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  targetType     ReviewTargetType
+  clubId         String?
+  club           SportClub?       @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  coachProfileId String?
+  coachProfile   CoachProfile?    @relation(fields: [coachProfileId], references: [id], onDelete: Cascade)
+  /// 1..5
+  rating         Int
+  body           String
+  isHidden       Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([authorUserId, clubId])
+  @@unique([authorUserId, coachProfileId])
+  @@index([clubId, createdAt])
+  @@index([coachProfileId, createdAt])
+  @@index([targetType, createdAt])
+  @@index([isHidden, createdAt])
 }

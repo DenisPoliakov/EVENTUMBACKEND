@@ -724,7 +724,7 @@
             type: string
             nullable: true
             example: /uploads/workouts/stable-slug/step.webp
-          poseIndex: { type: integer, minimum: 0, maximum: 5, nullable: true }
+          poseIndex: { type: integer, minimum: 0, maximum: 9999, nullable: true }
 
       WorkoutProgram:
         type: object
@@ -807,7 +807,7 @@
           description: { type: string, nullable: true, maxLength: 2000 }
           durationSeconds: { type: integer, minimum: 1, maximum: 86400 }
           illustrationUrl: { type: string, nullable: true }
-          poseIndex: { type: integer, minimum: 0, maximum: 5, nullable: true }
+          poseIndex: { type: integer, minimum: 0, maximum: 9999, nullable: true }
 
       WorkoutProgramViewResult:
         type: object
@@ -4240,4 +4240,76 @@
           - $ref: '#/components/parameters/ProductHeader'
         responses:
           '201': { description: '{ files[], mediaUrls[] }' }
+
+    /api/clubs/{clubId}/reviews:
+      get:
+        tags: [Reviews]
+        summary: Отзывы о клубе
+        parameters:
+          - { name: clubId, in: path, required: true, schema: { type: string, format: uuid } }
+          - { name: limit, in: query, schema: { type: integer, default: 50 } }
+          - { name: before, in: query, schema: { type: string, format: date-time } }
+        responses:
+          '200': { description: '{ reviews[], summary: { averageRating, reviewCount } }' }
+
+    /api/coach-profiles/{coachProfileId}/reviews:
+      get:
+        tags: [Reviews]
+        summary: Отзывы о тренере
+        parameters:
+          - { name: coachProfileId, in: path, required: true, schema: { type: string, format: uuid } }
+          - { name: limit, in: query, schema: { type: integer, default: 50 } }
+          - { name: before, in: query, schema: { type: string, format: date-time } }
+        responses:
+          '200': { description: '{ reviews[], summary }' }
+
+    /api/me/clubs/{clubId}/reviews:
+      post:
+        tags: [Reviews]
+        summary: Написать/обновить отзыв о клубе
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: clubId, in: path, required: true, schema: { type: string, format: uuid } }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rating, body]
+                properties:
+                  rating: { type: integer, minimum: 1, maximum: 5 }
+                  body: { type: string }
+        responses:
+          '201': { description: '{ review, summary }' }
+
+    /api/me/coach-profiles/{coachProfileId}/reviews:
+      post:
+        tags: [Reviews]
+        summary: Написать/обновить отзыв о тренере
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: coachProfileId, in: path, required: true, schema: { type: string, format: uuid } }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rating, body]
+                properties:
+                  rating: { type: integer, minimum: 1, maximum: 5 }
+                  body: { type: string }
+        responses:
+          '201': { description: '{ review, summary }' }
+
+    /api/me/reviews/{reviewId}:
+      delete:
+        tags: [Reviews]
+        summary: Удалить свой отзыв
+        security: [{ bearerAuth: [] }]
+        parameters:
+          - { name: reviewId, in: path, required: true, schema: { type: string, format: uuid } }
+        responses:
+          '204': { description: Удалён }
 

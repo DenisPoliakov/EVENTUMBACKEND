@@ -146,6 +146,7 @@ export type WellnessStory = {
   locale: 'ru'
   publishedAt: string
   isActive: boolean
+  visibleInApp?: boolean
   uniqueViewerCount: number
   viewedByMe?: boolean
   authorType?: 'platform' | 'coach' | 'club'

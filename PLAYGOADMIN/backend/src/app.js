@@ -51,6 +51,7 @@ import workoutProgramsRouter from './routes/workoutPrograms.js'
 import workoutProgramsPublicRouter from './routes/workoutProgramsPublic.js'
 import workoutSessionsRouter from './routes/workoutSessions.js'
 import yookassaWebhookRouter from './routes/yookassaWebhook.js'
+import reviewsRouter from './routes/reviews.js'
 
 const credentialsMatch = (provided, expected) => {
   const actualBuffer = Buffer.from(provided)
@@ -127,6 +128,7 @@ export const createApp = () => {
   app.use('/api', referralsRouter)
   app.use('/api', aiMatchHistoryRouter)
   app.use('/api', supportRouter)
+  app.use('/api', reviewsRouter)
 
   app.use('/api/admin', createAuthLimiter())
   app.use('/api/admin', (req, res, next) => {

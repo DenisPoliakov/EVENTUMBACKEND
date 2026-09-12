@@ -206,7 +206,7 @@ export const validateWorkoutStepPayload = (
 
   const data = {}
   if (requireOrder || Object.hasOwn(body, 'order')) {
-    const result = parseInteger(body.order, 'order', { min: 1, max: 10000 })
+    const result = parseInteger(body.order, 'order', { min: 1, max: 1_000_000 })
     if (result.error) return result
     data.order = result.value
   }
@@ -256,7 +256,7 @@ export const validateWorkoutStepPayload = (
   if (Object.hasOwn(body, 'poseIndex')) {
     const result = parseInteger(body.poseIndex, 'poseIndex', {
       min: 0,
-      max: 5,
+      max: 9999,
       nullable: true,
     })
     if (result.error) return result
