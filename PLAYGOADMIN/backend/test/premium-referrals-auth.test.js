@@ -101,6 +101,7 @@ test(
           username: `${marker}-invalid-signup`,
           password: 'password123',
           city: 'Москва',
+          birthDate: '1995-05-05',
           referralCode: 'DOESNOTEXIST',
         })
       assert.equal(invalidSignup.status, 404)
@@ -171,6 +172,7 @@ test(
           firstName: 'Signup',
           lastName: 'Referral',
           city: 'Москва',
+          birthDate: '1995-05-05',
           referralCode: ownerReferral.body.referralCode.toLowerCase(),
         })
       assert.equal(signup.status, 201)
