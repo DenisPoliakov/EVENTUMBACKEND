@@ -89,7 +89,11 @@ jobs:
           cache-dependency-path: PLAYGOADMIN/backend/package-lock.json
       - run: npm ci
       - run: npx prisma generate
-      - run: npx prisma migrate deploy
+      # История prisma/migrations не поднимает пустую базу: в ней нет enum
+      # NewsType, на котором падает 20260729150000. Это уже описано в
+      # PLAYGOADMIN/backend/OPERATIONS.md. Для одноразовой базы CI схема
+      # берётся из schema.prisma, чтобы интеграционные тесты реально выполнялись.
+      - run: npx prisma db push --skip-generate --accept-data-loss
       - run: npm run test:integration
 
   admin:

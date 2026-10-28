@@ -45,7 +45,7 @@ Backend (`PLAYGOADMIN/backend`):
 - `npm test`
 - `npm run build`
 
-В GitHub Actions интеграционные тесты идут с сервисом `postgres:16`. `TEST_DATABASE_URL` указывает на эту базу, поэтому тесты выполняются, а не пропускаются.
+В GitHub Actions интеграционные тесты идут с сервисом `postgres:16`. `TEST_DATABASE_URL` указывает на эту базу, поэтому тесты выполняются, а не пропускаются. Схема накатывается командой `prisma db push`: `prisma migrate deploy` на пустой базе останавливается на миграции `20260729150000_add_workout_sessions_news_analytics`, потому что enum `NewsType` в истории миграций не создаётся. Подробности — в `PLAYGOADMIN/backend/OPERATIONS.md`. Продуктовые миграции этот репозиторий в рамках OpenSpec не переписывает.
 
 ## Секреты
 
