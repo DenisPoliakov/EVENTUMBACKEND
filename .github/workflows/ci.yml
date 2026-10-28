@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  backend-lint:
+    name: Backend lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: PLAYGOADMIN/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: PLAYGOADMIN/backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://playgoadmin:playgoadmin@localhost:5432/playgoadmin?schema=public
+      - run: npm run lint
+        env:
+          DATABASE_URL: postgresql://playgoadmin:playgoadmin@localhost:5432/playgoadmin?schema=public
+
+  backend-unit:
+    name: Backend unit and contract
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: PLAYGOADMIN/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: PLAYGOADMIN/backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://playgoadmin:playgoadmin@localhost:5432/playgoadmin?schema=public
+      - run: npm run test:unit
+        env:
+          DATABASE_URL: postgresql://playgoadmin:playgoadmin@localhost:5432/playgoadmin?schema=public
+          NODE_ENV: test
+
+  backend-integration:
+    name: Backend integration
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: PLAYGOADMIN/backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: playgoadmin
+          POSTGRES_PASSWORD: playgoadmin
+          POSTGRES_DB: playgoadmin_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U playgoadmin -d playgoadmin_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://playgoadmin:playgoadmin@localhost:5432/playgoadmin_test?schema=public
+      TEST_DATABASE_URL: postgresql://playgoadmin:playgoadmin@localhost:5432/playgoadmin_test?schema=public
+      NODE_ENV: test
+      JWT_SECRET: ci-test-secret-not-for-production
+      ADMIN_USER: admin
+      ADMIN_PASSWORD: admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: PLAYGOADMIN/backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm run test:integration
+
+  admin:
+    name: Admin lint, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: PLAYGOADMIN/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: PLAYGOADMIN/admin/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

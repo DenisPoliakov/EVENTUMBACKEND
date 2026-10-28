@@ -1,0 +1,12 @@
+---
+description: Язык OpenSpec-артефактов и граница продуктовой логики
+alwaysApply: true
+---
+
+Пиши спеки, proposal, design, tasks и инструкции агентам на русском.
+
+Оставляй на английском ключевые слова формата: SHALL, MUST, SHOULD, Requirement, Scenario, WHEN, THEN, GIVEN, ADDED, MODIFIED, REMOVED. Не переводи имена полей, идентификаторы и код.
+
+As-is спеки в `openspec/specs` описывают текущий код. Не меняй продуктовое поведение, чтобы подогнать его под текст спеки. Если код и спека разошлись, обновляй спеку.
+
+Общий контракт `openspec/contracts/eventum-api.contract.json` должен оставаться согласованным с приложением `otwtz/eventum_clubs`. Новый маршрут добавляй в контракт и в доменную спеку вместе.

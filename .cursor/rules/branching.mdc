@@ -1,0 +1,14 @@
+---
+description: Ветки sdd-devel и запрет записи в main
+alwaysApply: true
+---
+
+Рабочая интеграционная ветка этого репозитория — `sdd-devel`.
+
+Не пушь в `main`. Не мёржи в `main`. Не открывай pull request в `main`, кроме случая, когда человек явно просит PR из `sdd-devel` в `main`.
+
+Pull request агента открывается в `sdd-devel`.
+
+В `main` код попадает только после того, как человек смёржил pull request из `sdd-devel`.
+
+Не коммить секреты, `.env` и ключи доступа.

@@ -1,0 +1,21 @@
+name: eventum
+schema: spec-driven
+contract: openspec/contracts/eventum-api.contract.json
+integrationBranch: sdd-devel
+protectedBranch: main
+repos:
+  - id: eventum-backend
+    role: backend-and-admin
+    url: https://github.com/DenisPoliakov/EVENTUMBACKEND
+    specs: openspec/specs
+  - id: eventum-clubs
+    role: app
+    url: https://github.com/otwtz/eventum_clubs
+    reference: true
+openspec:
+  schema: spec-driven
+  store: null
+  references:
+    - id: eventum-clubs
+      remote: https://github.com/otwtz/eventum_clubs.git
+      branch: sdd-devel

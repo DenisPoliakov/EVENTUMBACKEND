@@ -1,0 +1,1506 @@
+{
+  "name": "eventum-api",
+  "version": "1.0.0",
+  "description": "Общий HTTP-контракт Eventum между приложением otwtz/eventum_clubs и backend DenisPoliakov/EVENTUMBACKEND. Маршруты сняты с текущего кода backend (ветка sdd-devel / main 7937abd) и должны совпадать в обоих репозиториях.",
+  "products": [
+    "FOOTBALL",
+    "CLUBS"
+  ],
+  "productHeader": "X-Eventum-Product",
+  "productFallback": "FOOTBALL",
+  "errorField": "error",
+  "repos": {
+    "app": "https://github.com/otwtz/eventum_clubs",
+    "backend": "https://github.com/DenisPoliakov/EVENTUMBACKEND"
+  },
+  "documentation": [
+    {
+      "method": "GET",
+      "path": "/api/docs",
+      "auth": "none",
+      "domain": "platform",
+      "note": "Swagger UI. Не Express-route с собственным handler."
+    }
+  ],
+  "realtime": [
+    {
+      "protocol": "websocket",
+      "path": "/api/ws/chats",
+      "auth": "bearer",
+      "domain": "social",
+      "upgrade": "HTTP"
+    }
+  ],
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/admin/bookings",
+      "auth": "basic",
+      "domain": "bookings",
+      "source": "src/routes/adminBookings.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/bookings/:id/status",
+      "auth": "basic",
+      "domain": "bookings",
+      "source": "src/routes/adminBookings.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cities",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/cities.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cities",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/cities.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cities/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/cities.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cities/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/cities.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/cities/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/cities.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/clubs",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/clubs.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/clubs",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/clubs.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/clubs/:id",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/clubs.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/clubs/:id",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/clubs.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/clubs/:id",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/clubs.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/coach-club-link-requests",
+      "auth": "basic",
+      "domain": "coaches",
+      "source": "src/routes/adminCoachClubLinks.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/coach-club-link-requests/:id/approve",
+      "auth": "basic",
+      "domain": "coaches",
+      "source": "src/routes/adminCoachClubLinks.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/coach-club-link-requests/:id/reject",
+      "auth": "basic",
+      "domain": "coaches",
+      "source": "src/routes/adminCoachClubLinks.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/crm/overview",
+      "auth": "basic",
+      "domain": "crm",
+      "source": "src/routes/crm.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/matches",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/matches.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/matches",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/matches.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/matches/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/matches.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/matches/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/matches.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/matches/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/matches.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/news",
+      "auth": "basic",
+      "domain": "news",
+      "source": "src/routes/news.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/news",
+      "auth": "basic",
+      "domain": "news",
+      "source": "src/routes/news.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/news/:id",
+      "auth": "basic",
+      "domain": "news",
+      "source": "src/routes/news.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/news/:id",
+      "auth": "basic",
+      "domain": "news",
+      "source": "src/routes/news.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/news/:id/image",
+      "auth": "basic",
+      "domain": "news",
+      "source": "src/routes/news.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/orders",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/adminOrders.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/premium",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/adminPremium.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/push-campaigns",
+      "auth": "basic",
+      "domain": "notifications",
+      "source": "src/routes/adminPushCampaigns.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/push-campaigns",
+      "auth": "basic",
+      "domain": "notifications",
+      "source": "src/routes/adminPushCampaigns.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/push-campaigns/:id/preview",
+      "auth": "basic",
+      "domain": "notifications",
+      "source": "src/routes/adminPushCampaigns.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/push-campaigns/:id/send",
+      "auth": "basic",
+      "domain": "notifications",
+      "source": "src/routes/adminPushCampaigns.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/push-campaigns/templates",
+      "auth": "basic",
+      "domain": "notifications",
+      "source": "src/routes/adminPushCampaigns.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/push-campaigns/templates",
+      "auth": "basic",
+      "domain": "notifications",
+      "source": "src/routes/adminPushCampaigns.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/push-campaigns/templates/:id",
+      "auth": "basic",
+      "domain": "notifications",
+      "source": "src/routes/adminPushCampaigns.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/push-campaigns/templates/:id",
+      "auth": "basic",
+      "domain": "notifications",
+      "source": "src/routes/adminPushCampaigns.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/registrations",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/registrations.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/registrations",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/registrations.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/registrations/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/registrations.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/registrations/:id/status",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/registrations.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/sports",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/sports.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/sports",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/sports.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/sports/:id",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/sports.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/sports/:id",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/sports.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/sports/:id",
+      "auth": "basic",
+      "domain": "clubs",
+      "source": "src/routes/sports.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stadiums",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/stadiums.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/stadiums",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/stadiums.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/stadiums/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/stadiums.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stadiums/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/stadiums.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/stadiums/:id",
+      "auth": "basic",
+      "domain": "football",
+      "source": "src/routes/stadiums.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/subscription-plans",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/subscriptionPlans.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/subscription-plans",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/subscriptionPlans.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/subscription-plans/:id",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/subscriptionPlans.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/subscription-plans/:id",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/subscriptionPlans.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/subscription-plans/:id",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/subscriptionPlans.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/subscriptions",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/subscriptions.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/subscriptions/:id/status",
+      "auth": "basic",
+      "domain": "commerce",
+      "source": "src/routes/subscriptions.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/support",
+      "auth": "basic",
+      "domain": "support",
+      "source": "src/routes/adminSupport.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/support/:id",
+      "auth": "basic",
+      "domain": "support",
+      "source": "src/routes/adminSupport.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/support/:id",
+      "auth": "basic",
+      "domain": "support",
+      "source": "src/routes/adminSupport.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/support/:id/notes",
+      "auth": "basic",
+      "domain": "support",
+      "source": "src/routes/adminSupport.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/support/:id/replies",
+      "auth": "basic",
+      "domain": "support",
+      "source": "src/routes/adminSupport.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/teams",
+      "auth": "basic",
+      "domain": "teams",
+      "source": "src/routes/teams.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/teams",
+      "auth": "basic",
+      "domain": "teams",
+      "source": "src/routes/teams.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/teams/:id",
+      "auth": "basic",
+      "domain": "teams",
+      "source": "src/routes/teams.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/teams/:id",
+      "auth": "basic",
+      "domain": "teams",
+      "source": "src/routes/teams.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/teams/:id",
+      "auth": "basic",
+      "domain": "teams",
+      "source": "src/routes/teams.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/uploads",
+      "auth": "basic",
+      "domain": "platform",
+      "source": "src/routes/uploads.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users",
+      "auth": "basic",
+      "domain": "users",
+      "source": "src/routes/users.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users",
+      "auth": "basic",
+      "domain": "users",
+      "source": "src/routes/users.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/users/:id",
+      "auth": "basic",
+      "domain": "users",
+      "source": "src/routes/users.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/users/:id",
+      "auth": "basic",
+      "domain": "users",
+      "source": "src/routes/users.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/users/:id/moderation",
+      "auth": "basic",
+      "domain": "users",
+      "source": "src/routes/users.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/wellness-stories",
+      "auth": "basic",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStories.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/wellness-stories",
+      "auth": "basic",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStories.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/wellness-stories/:id",
+      "auth": "basic",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStories.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/wellness-stories/:id",
+      "auth": "basic",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStories.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/wellness-stories/:id",
+      "auth": "basic",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStories.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/wellness-stories/:id/cover",
+      "auth": "basic",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStories.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/wellness-stories/import",
+      "auth": "basic",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStories.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/workout-analytics",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/adminWorkoutAnalytics.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/workout-programs",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/workout-programs",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/workout-programs/:id",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/workout-programs/:id",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/workout-programs/:id",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/workout-programs/:id/steps",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/workout-programs/:id/steps",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/workout-programs/:id/steps/:stepId",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/workout-programs/:id/steps/:stepId",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/workout-programs/:id/steps/:stepId",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/workout-programs/:id/steps/:stepId/illustration",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/workout-programs/:id/steps/reorder",
+      "auth": "basic",
+      "domain": "workouts",
+      "source": "src/routes/workoutPrograms.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "auth": "none",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "auth": "none",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "auth": "none",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "auth": "none",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clubs",
+      "auth": "none",
+      "domain": "clubs",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/clubs/:id",
+      "auth": "none",
+      "domain": "clubs",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/coach-profiles/search",
+      "auth": "none",
+      "domain": "coaches",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ecosystem",
+      "auth": "bearer",
+      "domain": "ecosystem",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "auth": "none",
+      "domain": "platform",
+      "source": "src/routes/public.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/matches",
+      "auth": "none",
+      "domain": "football",
+      "source": "src/routes/public.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/matches/:id",
+      "auth": "none",
+      "domain": "football",
+      "source": "src/routes/public.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me",
+      "auth": "bearer",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me",
+      "auth": "bearer",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/me",
+      "auth": "bearer",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/ai-matches",
+      "auth": "bearer",
+      "domain": "ai-matches",
+      "source": "src/routes/aiMatchHistory.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/ai-matches",
+      "auth": "bearer",
+      "domain": "ai-matches",
+      "source": "src/routes/aiMatchHistory.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/ai-matches/:id",
+      "auth": "bearer",
+      "domain": "ai-matches",
+      "source": "src/routes/aiMatchHistory.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/avatar",
+      "auth": "bearer",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/avatar",
+      "auth": "bearer",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/bookings",
+      "auth": "bearer",
+      "domain": "bookings",
+      "source": "src/routes/bookings.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/bookings",
+      "auth": "bearer",
+      "domain": "bookings",
+      "source": "src/routes/bookings.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/chats",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/chats/:chatId",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/chats/:chatId",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/chats/:chatId/media",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/chats/:chatId/media/upload",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/chats/:chatId/messages",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/chats/:chatId/messages",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/chats/:chatId/messages/:messageId",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/me/chats/:chatId/messages/:messageId",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/chats/:chatId/read",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/chats/coach-profile/:coachProfileId",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/chats/direct",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/chats/saved",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/chats.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/coach-profile",
+      "auth": "bearer",
+      "domain": "coaches",
+      "source": "src/routes/coachProfiles.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/me/coach-profile",
+      "auth": "bearer",
+      "domain": "coaches",
+      "source": "src/routes/coachProfiles.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/coach-profile/club-link-requests",
+      "auth": "bearer",
+      "domain": "coaches",
+      "source": "src/routes/coachProfiles.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/coach-profile/club-link-requests",
+      "auth": "bearer",
+      "domain": "coaches",
+      "source": "src/routes/coachProfiles.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/coach-profile/club-link-requests/:id/cancel",
+      "auth": "bearer",
+      "domain": "coaches",
+      "source": "src/routes/coachProfiles.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/coach-profile/photo",
+      "auth": "bearer",
+      "domain": "coaches",
+      "source": "src/routes/coachProfiles.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/favorite-clubs",
+      "auth": "bearer",
+      "domain": "clubs",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/favorite-clubs",
+      "auth": "bearer",
+      "domain": "clubs",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/favorite-clubs/:clubId",
+      "auth": "bearer",
+      "domain": "clubs",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/friends",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/friends",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/friends/:friendshipId/accept",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/friends/:friendshipId/reject",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/friends/:userId",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/friends/outgoing",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/friends/requests",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/friends/requests/:friendshipId",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/news",
+      "auth": "bearer",
+      "domain": "news",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/news/:id/view",
+      "auth": "bearer",
+      "domain": "news",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/notifications",
+      "auth": "bearer",
+      "domain": "notifications",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/me/notifications/:id/read",
+      "auth": "bearer",
+      "domain": "notifications",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/notifications/read-all",
+      "auth": "bearer",
+      "domain": "notifications",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/orders",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/orders.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/password",
+      "auth": "bearer",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/password/check",
+      "auth": "bearer",
+      "domain": "auth",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/player-card",
+      "auth": "bearer",
+      "domain": "player-cards",
+      "source": "src/routes/playerCards.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/me/player-card",
+      "auth": "bearer",
+      "domain": "player-cards",
+      "source": "src/routes/playerCards.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/player-card/avatar",
+      "auth": "bearer",
+      "domain": "player-cards",
+      "source": "src/routes/playerCards.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/premium",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/premium.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/premium",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/premium.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/premium/credits",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/premium.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/premium/credits/purchase",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/premium.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/privacy",
+      "auth": "bearer",
+      "domain": "privacy",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/me/privacy",
+      "auth": "bearer",
+      "domain": "privacy",
+      "source": "src/routes/auth.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/push-tokens",
+      "auth": "bearer",
+      "domain": "notifications",
+      "source": "src/routes/pushTokens.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/push-tokens",
+      "auth": "bearer",
+      "domain": "notifications",
+      "source": "src/routes/pushTokens.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/push-tokens/:id",
+      "auth": "bearer",
+      "domain": "notifications",
+      "source": "src/routes/pushTokens.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/referral",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/referrals.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/referral/apply",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/referrals.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/subscriptions",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/subscriptions/notifications",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/support",
+      "auth": "bearer",
+      "domain": "support",
+      "source": "src/routes/support.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/support",
+      "auth": "bearer",
+      "domain": "support",
+      "source": "src/routes/support.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/support/:id/replies",
+      "auth": "bearer",
+      "domain": "support",
+      "source": "src/routes/support.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/team",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/team",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/team-invitations",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/team-invitations/:id/accept",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/team-invitations/:id/reject",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/team/invitations",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/team/members/:memberId",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/me/team/members/:memberId",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/team/members/:memberId/transfer-captain",
+      "auth": "bearer",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/wellness-stories",
+      "auth": "bearer",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStoriesMe.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/wellness-stories",
+      "auth": "bearer",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStoriesMe.js"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/wellness-stories/:id",
+      "auth": "bearer",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStoriesMe.js"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/me/wellness-stories/:id",
+      "auth": "bearer",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStoriesMe.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/wellness-stories/:id/cover",
+      "auth": "bearer",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStoriesMe.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/wellness-stories/:identifier/view",
+      "auth": "bearer",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStoriesPublic.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/workout-programs/:id/view",
+      "auth": "bearer",
+      "domain": "workouts",
+      "source": "src/routes/workoutProgramsPublic.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/workout-sessions",
+      "auth": "bearer",
+      "domain": "workouts",
+      "source": "src/routes/workoutSessions.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/workout-sessions",
+      "auth": "bearer",
+      "domain": "workouts",
+      "source": "src/routes/workoutSessions.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/workout-sessions/bulk",
+      "auth": "bearer",
+      "domain": "workouts",
+      "source": "src/routes/workoutSessions.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/news",
+      "auth": "none",
+      "domain": "news",
+      "source": "src/routes/public.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/openapi.json",
+      "auth": "none",
+      "domain": "platform",
+      "source": "src/app.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/player-card-options",
+      "auth": "none",
+      "domain": "player-cards",
+      "source": "src/routes/playerCards.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/players",
+      "auth": "optional",
+      "domain": "player-cards",
+      "source": "src/routes/playerCards.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/players/:userId",
+      "auth": "optional",
+      "domain": "player-cards",
+      "source": "src/routes/playerCards.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/registrations",
+      "auth": "none",
+      "domain": "football",
+      "source": "src/routes/public.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/registrations",
+      "auth": "none",
+      "domain": "football",
+      "source": "src/routes/public.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/search/places",
+      "auth": "none",
+      "domain": "clubs",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sports",
+      "auth": "none",
+      "domain": "clubs",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/stadiums",
+      "auth": "none",
+      "domain": "football",
+      "source": "src/routes/public.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/subscription-plans",
+      "auth": "none",
+      "domain": "commerce",
+      "source": "src/routes/ecosystem.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/subscriptions",
+      "auth": "bearer",
+      "domain": "commerce",
+      "source": "src/routes/orders.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/teams/:id/public",
+      "auth": "none",
+      "domain": "teams",
+      "source": "src/routes/teamHub.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/search",
+      "auth": "bearer",
+      "domain": "social",
+      "source": "src/routes/friends.js"
+    },
+    {
+      "method": "POST",
+      "path": "/api/webhooks/yookassa",
+      "auth": "none",
+      "domain": "commerce",
+      "source": "src/routes/yookassaWebhook.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/wellness-stories",
+      "auth": "optional",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStoriesPublic.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/wellness-stories/:identifier",
+      "auth": "optional",
+      "domain": "wellness",
+      "source": "src/routes/wellnessStoriesPublic.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workout-programs",
+      "auth": "optional",
+      "domain": "workouts",
+      "source": "src/routes/workoutProgramsPublic.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workout-programs/:id",
+      "auth": "optional",
+      "domain": "workouts",
+      "source": "src/routes/workoutProgramsPublic.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workout-programs/:id/steps",
+      "auth": "optional",
+      "domain": "workouts",
+      "source": "src/routes/workoutProgramsPublic.js"
+    }
+  ]
+}

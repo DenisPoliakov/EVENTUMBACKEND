@@ -1,0 +1,39 @@
+schema: spec-driven
+
+context: |
+  Репозиторий EVENTUMBACKEND: HTTP API в PLAYGOADMIN/backend и веб-админка в PLAYGOADMIN/admin.
+  Канонические as-is спеки лежат в openspec/specs и описывают текущий код.
+  Общий контракт с приложением otwtz/eventum_clubs: openspec/contracts/eventum-api.contract.json.
+  Пиши proposal, spec, design и tasks на русском.
+  Не переводи ключевые слова формата: SHALL, MUST, SHOULD, Requirement, Scenario, WHEN, THEN, GIVEN, ADDED, MODIFIED, REMOVED.
+  Не переводи имена полей, идентификаторы и код.
+  Ветка интеграции — sdd-devel. В main агентам пушить и мёржить запрещено.
+  Секреты не коммитить. Продуктовое поведение не менять, если задача этого явно не требует.
+
+rules:
+  proposal:
+    - Пиши на русском, ключевые слова формата оставляй на английском
+    - Не предлагай смену продуктовой логики без явного запроса
+  specs:
+    - Фиксируй наблюдаемое поведение кода
+    - У каждого Requirement есть хотя бы один Scenario с GIVEN, WHEN и THEN
+  design:
+    - Ссылайся на доменную спеку и на openspec/contracts/eventum-api.contract.json
+  tasks:
+    - Не включай шаги, которые коммитят секреты или пушат в main
+
+operations:
+  apply:
+    guidance:
+      - Не меняй поведение API и админки, если задача этого не требует
+      - Перед завершением прогоняй lint, unit, контрактные и интеграционные тесты
+  archive:
+    guidance:
+      - Сверь дельту change с as-is спекой домена
+
+# references — соседний репозиторий приложения. store не задан:
+# в этом репозитории есть свои specs/ и changes/, поэтому OpenSpec
+# использует локальный корень, а не внешний store.
+references:
+  - id: eventum-clubs
+    remote: https://github.com/otwtz/eventum_clubs.git
